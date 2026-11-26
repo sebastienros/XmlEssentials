@@ -21,8 +21,8 @@ namespace CloudNimble.Text.Xml.XPath
     /// </example>
     /// <remarks>
     /// An expression is immutable, and may be evaluated from several threads at once, over one document or many. It
-    /// holds its names and literals as UTF-8, and is evaluated over the UTF-8 rows of the document without making a
-    /// string for a name or a value, except for a value that has to be put together from several rows.
+    /// holds its names and literals as UTF-8 and compares them with the rows of the document byte for byte, so an
+    /// evaluation transcodes nothing until it returns its result.
     /// </remarks>
     public sealed class XPathExpression
     {

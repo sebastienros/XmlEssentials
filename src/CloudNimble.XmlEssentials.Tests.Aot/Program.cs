@@ -38,6 +38,7 @@ namespace CloudNimble.XmlEssentials.Tests.Aot
                 CheckShapesFromXsd();
                 inventoryXml = CheckInventoryRoundTrip();
                 EngineFeatures.Check();
+                XPathFeatures.Check();
                 CheckTrimmedShapes();
                 CheckReader();
             }

@@ -42,6 +42,16 @@ namespace CloudNimble.Text.Xml.XPath
 
         #endregion
 
+        #region Internal Methods
+
+        /// <inheritdoc />
+        internal override XPathValue Evaluate(XPathEvaluator evaluator, in XPathFocus focus)
+        {
+            return evaluator.Negation(this, focus);
+        }
+
+        #endregion
+
     }
 
 }

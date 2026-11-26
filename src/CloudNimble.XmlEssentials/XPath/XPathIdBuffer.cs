@@ -38,7 +38,7 @@ namespace CloudNimble.Text.Xml.XPath
         /// <summary>
         /// Creates a buffer with room for <paramref name="capacity"/> ids before it grows.
         /// </summary>
-        /// <param name="capacity">The initial capacity, at least 1.</param>
+        /// <param name="capacity">The initial capacity, which may be 0.</param>
         internal XPathIdBuffer(int capacity)
         {
             _items = new long[capacity];
@@ -57,7 +57,7 @@ namespace CloudNimble.Text.Xml.XPath
         {
             if (_count == _items.Length)
             {
-                Array.Resize(ref _items, _items.Length * 2);
+                Array.Resize(ref _items, Math.Max(_items.Length * 2, 4));
             }
 
             _items[_count++] = id;

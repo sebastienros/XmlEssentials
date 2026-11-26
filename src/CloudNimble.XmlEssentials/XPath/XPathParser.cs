@@ -186,6 +186,40 @@ namespace CloudNimble.Text.Xml.XPath
         }
 
         /// <summary>
+        /// Returns the text of a string literal without its quotes, as UTF-8.
+        /// </summary>
+        private byte[] LiteralValue(XPathToken literal)
+        {
+            return Encoding.UTF8.GetBytes(_source, literal.Start + 1, literal.Length - 2);
+        }
+
+        /// <summary>
+        /// Returns the local part of a name.
+        /// </summary>
+        private ReadOnlySpan<char> LocalPart(XPathToken name)
+        {
+            return name.Colon < 0 ? Text(name) : _source.AsSpan(name.Colon + 1, name.Start + name.Length - name.Colon - 1);
+        }
+
+        /// <summary>
+        /// Returns the multiplicative operator the current token is, after an operand.
+        /// </summary>
+        private XPathArithmeticOperator? MultiplicativeOperator()
+        {
+            if (_current.Kind is XPathTokenKind.Star)
+            {
+                return XPathArithmeticOperator.Multiply;
+            }
+
+            if (IsOperator("div"))
+            {
+                return XPathArithmeticOperator.Divide;
+            }
+
+            return IsOperator("mod") ? XPathArithmeticOperator.Modulo : null;
+        }
+
+        /// <summary>
         /// Returns the node type a name names, when it is followed by <c>(</c>.
         /// </summary>
         /// <param name="token">A name.</param>
@@ -360,24 +394,6 @@ namespace CloudNimble.Text.Xml.XPath
             }
 
             return new XPathArithmetic([.. operands], [.. operators]);
-        }
-
-        /// <summary>
-        /// Returns the multiplicative operator the current token is, after an operand.
-        /// </summary>
-        private XPathArithmeticOperator? MultiplicativeOperator()
-        {
-            if (_current.Kind is XPathTokenKind.Star)
-            {
-                return XPathArithmeticOperator.Multiply;
-            }
-
-            if (IsOperator("div"))
-            {
-                return XPathArithmeticOperator.Divide;
-            }
-
-            return IsOperator("mod") ? XPathArithmeticOperator.Modulo : null;
         }
 
         /// <summary>
@@ -694,22 +710,6 @@ namespace CloudNimble.Text.Xml.XPath
 
             Defer($"The prefix '{prefix}' is not bound in {nameof(XPathOptions)}.{nameof(XPathOptions.Namespaces)}.", name.Start);
             return string.Empty;
-        }
-
-        /// <summary>
-        /// Returns the local part of a name.
-        /// </summary>
-        private ReadOnlySpan<char> LocalPart(XPathToken name)
-        {
-            return name.Colon < 0 ? Text(name) : _source.AsSpan(name.Colon + 1, name.Start + name.Length - name.Colon - 1);
-        }
-
-        /// <summary>
-        /// Returns the text of a string literal without its quotes, as UTF-8.
-        /// </summary>
-        private byte[] LiteralValue(XPathToken literal)
-        {
-            return Encoding.UTF8.GetBytes(_source, literal.Start + 1, literal.Length - 2);
         }
 
         /// <summary>

@@ -111,6 +111,132 @@ namespace CloudNimble.Text.Xml.XPath
             return new XPathExpression(expression, ast, options?.MaxOperations ?? 0);
         }
 
+        /// <summary>
+        /// Evaluates the expression with the document node as the context node.
+        /// </summary>
+        /// <param name="document">The document.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The value of the expression.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="document"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">A variable the expression uses holds a node-set of another document.</exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+        /// does more work than <see cref="XPathOptions.MaxOperations"/>.
+        /// </exception>
+        /// <example>
+        /// <code>
+        /// var count = XPathExpression.Compile("count(//item)").Evaluate(document).GetNumber();
+        /// </code>
+        /// </example>
+        public XPathResult Evaluate(XmlDocument document, XPathVariables? variables = null)
+        {
+            ArgumentNullException.ThrowIfNull(document);
+            document.ThrowIfDisposed();
+            return Run(document, XPathNodeId.Document, variables);
+        }
+
+        /// <summary>
+        /// Evaluates the expression with a cursor's node as the context node.
+        /// </summary>
+        /// <param name="context">The context node. A cursor on a later text or CDATA section of a run stands for the text node of the whole run.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The value of the expression.</returns>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="context"/> is a default <see cref="XmlElement"/>, a namespace declaration, or a text run with no
+        /// characters, none of which is a node.
+        /// -or-
+        /// A variable the expression uses holds a node-set of another document.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+        /// does more work than <see cref="XPathOptions.MaxOperations"/>.
+        /// </exception>
+        public XPathResult Evaluate(XmlElement context, XPathVariables? variables = null)
+        {
+            var document = context.Document ?? throw new ArgumentException("The context is a default XmlElement, which refers to no node.", nameof(context));
+            document.ThrowIfDisposed();
+            return Run(document, new XPathNavigator(document).FromElement(context, nameof(context)), variables);
+        }
+
+        /// <summary>
+        /// Evaluates the expression with a node as the context node.
+        /// </summary>
+        /// <param name="context">The context node, which an earlier evaluation selected.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The value of the expression.</returns>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="context"/> is a default <see cref="XPathNode"/>.
+        /// -or-
+        /// A variable the expression uses holds a node-set of another document.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+        /// does more work than <see cref="XPathOptions.MaxOperations"/>.
+        /// </exception>
+        public XPathResult Evaluate(XPathNode context, XPathVariables? variables = null)
+        {
+            var document = context.Document ?? throw new ArgumentException("The context is a default XPathNode, which refers to no node.", nameof(context));
+            document.ThrowIfDisposed();
+            return Run(document, context.Id, variables);
+        }
+
+        /// <summary>
+        /// Evaluates the expression with the document node as the context node, and returns the node-set it yields.
+        /// </summary>
+        /// <param name="document">The document.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The nodes, in document order.</returns>
+        /// <exception cref="ArgumentNullException"><paramref name="document"/> is <see langword="null"/>.</exception>
+        /// <exception cref="ArgumentException">A variable the expression uses holds a node-set of another document.</exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// The expression does not yield a node-set; or it fails as <see cref="Evaluate(XmlDocument, XPathVariables?)"/> does.
+        /// </exception>
+        public XPathNodeSet Select(XmlDocument document, XPathVariables? variables = null)
+        {
+            return NodeSet(Evaluate(document, variables));
+        }
+
+        /// <summary>
+        /// Evaluates the expression with a cursor's node as the context node, and returns the node-set it yields.
+        /// </summary>
+        /// <param name="context">The context node.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The nodes, in document order.</returns>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="context"/> is not a node, or a variable holds a node-set of another document, as for
+        /// <see cref="Evaluate(XmlElement, XPathVariables?)"/>.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// The expression does not yield a node-set; or it fails as <see cref="Evaluate(XmlElement, XPathVariables?)"/> does.
+        /// </exception>
+        public XPathNodeSet Select(XmlElement context, XPathVariables? variables = null)
+        {
+            return NodeSet(Evaluate(context, variables));
+        }
+
+        /// <summary>
+        /// Evaluates the expression with a node as the context node, and returns the node-set it yields.
+        /// </summary>
+        /// <param name="context">The context node.</param>
+        /// <param name="variables">The values of the variables the expression uses, or <see langword="null"/>.</param>
+        /// <returns>The nodes, in document order.</returns>
+        /// <exception cref="ArgumentException">
+        /// <paramref name="context"/> is a default <see cref="XPathNode"/>, or a variable holds a node-set of another document.
+        /// </exception>
+        /// <exception cref="ObjectDisposedException">The document has been disposed.</exception>
+        /// <exception cref="XPathException">
+        /// The expression does not yield a node-set; or it fails as <see cref="Evaluate(XPathNode, XPathVariables?)"/> does.
+        /// </exception>
+        public XPathNodeSet Select(XPathNode context, XPathVariables? variables = null)
+        {
+            return NodeSet(Evaluate(context, variables));
+        }
+
         #endregion
 
         #region Private Methods
@@ -148,6 +274,35 @@ namespace CloudNimble.Text.Xml.XPath
             return copy;
         }
 
+
+        /// <summary>
+        /// Returns the node-set a result is, for <c>Select</c>.
+        /// </summary>
+        /// <param name="result">The result.</param>
+        /// <returns>The node-set.</returns>
+        /// <exception cref="XPathException">The result is not a node-set.</exception>
+        private static XPathNodeSet NodeSet(XPathResult result)
+        {
+            if (result.Kind is not XPathResultKind.NodeSet)
+            {
+                throw new XPathException($"The expression yields a {result.Kind}, not a node-set.", position: null);
+            }
+
+            return result.GetNodeSet();
+        }
+
+        /// <summary>
+        /// Evaluates the expression from a context node.
+        /// </summary>
+        /// <param name="document">The document, which is not disposed.</param>
+        /// <param name="context">The context node.</param>
+        /// <param name="variables">The values of the variables, or <see langword="null"/>.</param>
+        /// <returns>The result.</returns>
+        private XPathResult Run(XmlDocument document, long context, XPathVariables? variables)
+        {
+            var evaluator = new XPathEvaluator(document, variables, MaxOperations);
+            return XPathResult.From(document, evaluator.Evaluate(Ast, new XPathFocus(context, 1, 1)));
+        }
         #endregion
 
     }

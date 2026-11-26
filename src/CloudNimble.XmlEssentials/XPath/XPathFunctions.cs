@@ -24,6 +24,16 @@ namespace CloudNimble.Text.Xml.XPath
         ];
 
         /// <summary>
+        /// The name of each function.
+        /// </summary>
+        private static readonly string[] Names =
+        [
+            "last", "position", "count", "id", "local-name", "namespace-uri", "name", "string", "concat", "starts-with",
+            "contains", "substring-before", "substring-after", "substring", "string-length", "normalize-space",
+            "translate", "boolean", "not", "true", "false", "lang", "number", "sum", "floor", "ceiling", "round",
+        ];
+
+        /// <summary>
         /// The most arguments each function takes.
         /// </summary>
         private static readonly int[] Maximums = [0, 0, 1, 1, 1, 1, 1, 1, int.MaxValue, 2, 2, 2, 2, 3, 1, 1, 3, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1];
@@ -56,6 +66,16 @@ namespace CloudNimble.Text.Xml.XPath
         internal static string Arity(XPathFunction function)
         {
             return Arities[(int)function];
+        }
+
+        /// <summary>
+        /// Returns the name of a function.
+        /// </summary>
+        /// <param name="function">The function.</param>
+        /// <returns>The name, such as <c>local-name</c>.</returns>
+        internal static string Name(XPathFunction function)
+        {
+            return Names[(int)function];
         }
 
         /// <summary>

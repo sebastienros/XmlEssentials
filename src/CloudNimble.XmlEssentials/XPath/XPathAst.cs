@@ -33,6 +33,18 @@ namespace CloudNimble.Text.Xml.XPath
 
         #endregion
 
+        #region Internal Methods
+
+        /// <summary>
+        /// Evaluates this part of the expression.
+        /// </summary>
+        /// <param name="evaluator">The evaluation it is part of.</param>
+        /// <param name="focus">The context node, position and size.</param>
+        /// <returns>The value.</returns>
+        internal abstract XPathValue Evaluate(XPathEvaluator evaluator, in XPathFocus focus);
+
+        #endregion
+
     }
 
 }

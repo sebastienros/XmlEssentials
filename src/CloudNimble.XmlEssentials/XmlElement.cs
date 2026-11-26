@@ -51,6 +51,11 @@ namespace CloudNimble.Text.Xml
         internal XmlDocument? Document => _document;
 
         /// <summary>
+        /// Gets the row this element is a cursor on.
+        /// </summary>
+        internal int Index => _index;
+
+        /// <summary>
         /// Gets the number of attributes on this element.
         /// </summary>
         /// <value>

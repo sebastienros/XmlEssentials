@@ -271,4 +271,4 @@ Parameters that really are UTF-8 keep `utf8Xml`: the `Utf8XmlReader` constructor
 
 ---
 
-[Index](README.md) · [Previous: Single engine metadata](25-single-engine-metadata.md)
+[Index](README.md) · [Previous: Single engine metadata](25-single-engine-metadata.md) · [Next: XPath 1.0](27-xpath.md)

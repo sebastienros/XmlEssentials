@@ -54,6 +54,7 @@ using CloudNimble.Text.Xml.Serialization;
 | [24-doc-findings-resolution.md](24-doc-findings-resolution.md) | Defects found by the documentation pass, and their resolution |
 | [25-single-engine-metadata.md](25-single-engine-metadata.md) | Generated metadata and one runtime engine: design, public API, task list |
 | [26-expanded-encoding-support.md](26-expanded-encoding-support.md) | Reading UTF-16, UTF-32, US-ASCII and ISO-8859-1, and converting to UTF-8: design and task list |
+| [27-xpath.md](27-xpath.md) | XPath 1.0 over the read-only `XmlDocument`: the navigator, the public API and the task list |
 
 ## How to read the spec
 

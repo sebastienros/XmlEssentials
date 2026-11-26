@@ -55,6 +55,7 @@ namespace CloudNimble.Text.Xml
         private bool _isPooled = true;
         private int _nsCacheLength;
         private int _nsCacheStart;
+        private int[]? _parents;
         private int _rootIndex;
         private int _rowCount;
         private XmlDbRow[] _rows;
@@ -90,6 +91,14 @@ namespace CloudNimble.Text.Xml
         /// <see cref="Dispose"/> returns.
         /// </summary>
         internal bool IsPooled => _isPooled;
+
+        /// <summary>
+        /// Gets the number of rows the document holds.
+        /// </summary>
+        /// <remarks>
+        /// Does not check for disposal: a disposed document has none.
+        /// </remarks>
+        internal int RowCount => _rowCount;
 
         /// <summary>
         /// Gets the root element of this XML document.
@@ -285,6 +294,7 @@ namespace CloudNimble.Text.Xml
             _source = [];
             _extra = [];
             _rows = [];
+            _parents = null;
             _sourceLength = 0;
             _extraLength = 0;
             _rowCount = 0;
@@ -1060,6 +1070,51 @@ namespace CloudNimble.Text.Xml
         }
 
         /// <summary>
+        /// Returns the parent of every row: the row index of the element it is in, or <c>-1</c> for a row that
+        /// no element is above.
+        /// </summary>
+        /// <returns>One entry for each row. An attribute row holds the row of its element.</returns>
+        /// <remarks>
+        /// <para>
+        /// The table is built the first time it is asked for, in one pass with no stack: the row before
+        /// <c>r</c> is either the parent of <c>r</c> or a node below a preceding sibling of <c>r</c>, so the
+        /// pass steps back over elements that have ended, and never enters one twice. It is linear in the
+        /// number of rows.
+        /// </para>
+        /// <para>
+        /// It is published with <see cref="Interlocked.CompareExchange{T}(ref T, T, T)"/>, so two threads that
+        /// build it at once both get a correct table and every caller afterwards gets the one that was kept. It is
+        /// a plain array, not a pooled one, and <see cref="Dispose"/> lets it go. Does not check for disposal, and is
+        /// not to be called while the document is being disposed.
+        /// </para>
+        /// </remarks>
+        internal int[] GetParentTable()
+        {
+            if (_parents is { } built)
+            {
+                return built;
+            }
+
+            var count = _rowCount;
+            var parents = new int[count];
+            for (var r = 0; r < count; r++)
+            {
+                var p = r - 1;
+                while (p >= 0 && !(IsElementKind(_rows[p].Kind) && _rows[p].EndIndex > r))
+                {
+                    p = parents[p];
+                }
+
+                parents[r] = p;
+            }
+
+            // The first table to be published is the one every caller gets. A thread that loses the race drops
+            // its own, which is equal to it.
+            Interlocked.CompareExchange(ref _parents, parents, null);
+            return _parents!;
+        }
+
+        /// <summary>
         /// Returns whether <paramref name="kind"/> is one of the element kinds.
         /// </summary>
         /// <param name="kind">The row kind.</param>
@@ -1414,6 +1469,20 @@ namespace CloudNimble.Text.Xml
             return start < _sourceLength
                 ? _source.AsSpan(start, length)
                 : _extra.AsSpan(start - _sourceLength, length);
+        }
+
+        /// <summary>
+        /// Returns <paramref name="length"/> bytes at document offset <paramref name="start"/> as memory over the
+        /// document's own buffer.
+        /// </summary>
+        /// <param name="start">An offset below the payload length for the payload, otherwise into the extra buffer.</param>
+        /// <param name="length">The length.</param>
+        /// <returns>The UTF-8 bytes, which are valid until the document is disposed.</returns>
+        internal ReadOnlyMemory<byte> SliceMemory(int start, int length)
+        {
+            return start < _sourceLength
+                ? _source.AsMemory(start, length)
+                : _extra.AsMemory(start - _sourceLength, length);
         }
 
         /// <summary>

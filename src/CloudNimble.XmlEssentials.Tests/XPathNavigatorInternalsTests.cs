@@ -1,0 +1,89 @@
+using System;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using CloudNimble.Text.Xml;
+using FluentAssertions;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+namespace CloudNimble.XmlEssentials.Tests
+{
+
+    /// <summary>
+    /// Internals of the XPath navigator over <see cref="XmlDocument"/>: the parent table and the slices it reads.
+    /// </summary>
+    [TestClass]
+    public class XPathNavigatorInternalsTests
+    {
+
+        #region Public Methods
+
+        [TestMethod]
+        public void GetParentTable_Fixture_HoldsTheParentOfEveryRow()
+        {
+            using var document = XmlDocument.Parse(XPathFixture.Xml);
+            document.RowCount.Should().Be(27);
+            document.GetParentTable().Should().Equal(XPathFixture.Parents);
+        }
+
+        [TestMethod]
+        public void GetParentTable_IsBuiltOnFirstUse_AndKept()
+        {
+            using var document = XmlDocument.Parse(XPathFixture.Xml);
+            XPathFixture.HasParentTable(document).Should().BeFalse();
+            var first = document.GetParentTable();
+            XPathFixture.HasParentTable(document).Should().BeTrue();
+            document.GetParentTable().Should().BeSameAs(first);
+        }
+
+        [TestMethod]
+        public void GetParentTable_OneRow_IsMinusOne()
+        {
+            using var document = XmlDocument.Parse("<e/>");
+            document.GetParentTable().Should().Equal([-1]);
+        }
+
+        [TestMethod]
+        public void GetParentTable_DeepDocument_StepsBackOverEndedElements()
+        {
+            using var document = XmlDocument.Parse("<a><b><c/><d><e/></d></b><f/>x</a>");
+            // a b c d e f x
+            document.GetParentTable().Should().Equal([-1, 0, 1, 1, 3, 0, 0]);
+        }
+
+        [TestMethod]
+        public void GetParentTable_ThreadsThatRace_AllGetTheSameTable()
+        {
+            using var document = XmlDocument.Parse(XPathFixture.Xml);
+            var tables = new int[8][];
+            Parallel.For(0, tables.Length, i => tables[i] = document.GetParentTable());
+            tables.Should().AllSatisfy(table => table.Should().BeSameAs(tables[0]));
+            tables[0].Should().Equal(XPathFixture.Parents);
+        }
+
+        [TestMethod]
+        public void Dispose_LetsTheParentTableGo()
+        {
+            var document = XmlDocument.Parse(XPathFixture.Xml);
+            document.GetParentTable();
+            document.Dispose();
+            XPathFixture.HasParentTable(document).Should().BeFalse();
+            document.RowCount.Should().Be(0);
+        }
+
+        [TestMethod]
+        public void SliceMemory_PayloadAndExtra_ReturnTheBytesOfTheRow()
+        {
+            using var document = XmlDocument.Parse("<e a=\"1\">&amp;x</e>");
+            ref var attribute = ref document.Row(1);
+            ref var text = ref document.Row(2);
+            Encoding.UTF8.GetString(document.SliceMemory(attribute.ValueStart, attribute.ValueLength).Span).Should().Be("1");
+            Encoding.UTF8.GetString(document.SliceMemory(text.ValueStart, text.ValueLength).Span).Should().Be("&x");
+            document.SliceMemory(text.ValueStart, text.ValueLength).Span.SequenceEqual(document.Slice(text.ValueStart, text.ValueLength)).Should().BeTrue();
+        }
+
+        #endregion
+
+    }
+
+}

@@ -3,6 +3,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CloudNimble.Text.Xml;
+using CloudNimble.Text.Xml.XPath;
 using FluentAssertions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -69,6 +70,19 @@ namespace CloudNimble.XmlEssentials.Tests
             document.Dispose();
             XPathFixture.HasParentTable(document).Should().BeFalse();
             document.RowCount.Should().Be(0);
+        }
+
+        [TestMethod]
+        public void Select_NodeTestOfAKindTheParserNeverMakes_PassesNothing()
+        {
+            using var document = XmlDocument.Parse(XPathFixture.Xml);
+            var navigator = new XPathNavigator(document);
+            var unknown = new XPathNodeTest((XPathNodeTestKind)99, [], [], null);
+            var output = new XPathIdBuffer(4);
+            navigator.Select(XPathNodeId.Document, XPathAxis.Descendant, unknown, ref output);
+            navigator.Select(XPathNodeId.FromRow(2), XPathAxis.Attribute, unknown, ref output);
+            navigator.Select(XPathNodeId.FromRow(10), XPathAxis.Namespace, unknown, ref output);
+            output.Count.Should().Be(0);
         }
 
         [TestMethod]

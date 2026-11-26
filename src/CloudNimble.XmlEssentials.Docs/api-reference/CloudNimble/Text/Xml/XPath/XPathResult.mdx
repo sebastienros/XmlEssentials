@@ -1,0 +1,344 @@
+---
+title: XPathResult
+description: "The value of an XPath expression: a node-set, a boolean, a number or a string."
+icon: cubes
+tag: "SEALED"
+keywords: ['XPathResult', 'CloudNimble.Text.Xml.XPath.XPathResult', 'CloudNimble.Text.Xml.XPath', 'struct', 'System.ValueType']
+---
+
+## Definition
+
+**Assembly:** CloudNimble.XmlEssentials.dll
+
+**Namespace:** CloudNimble.Text.Xml.XPath
+
+**Inheritance:** System.ValueType
+
+## Syntax
+
+```csharp
+CloudNimble.Text.Xml.XPath.XPathResult
+```
+
+## Summary
+
+The value of an XPath expression: a node-set, a boolean, a number or a string.
+
+## Remarks
+
+[XPathResult.GetBoolean](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult#getboolean), [XPathResult.GetNumber](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult#getnumber) and [XPathResult.GetString](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult#getstring) convert a result of any kind as the
+          XPath functions `boolean()`, `number()` and `string()` do. A string result is made a
+          [String](https://learn.microsoft.com/dotnet/api/system.string) before the evaluation returns. A node-set result holds its document, which must not be
+          disposed before the nodes are used.
+
+A default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult) is the result of no evaluation, and every member of it throws
+[InvalidOperationException](https://learn.microsoft.com/dotnet/api/system.invalidoperationexception).
+
+## Examples
+
+```csharp
+var total = XPathExpression.Compile("sum(/order/line/@amount)").Evaluate(document).GetNumber();
+var open = XPathExpression.Compile("/order/@status = 'open'").Evaluate(document).GetBoolean();
+```
+
+## Constructors
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `System.ValueType`</Note>
+
+#### Syntax
+
+```csharp
+protected ValueType()
+```
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public Object()
+```
+
+## Properties
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Kind
+
+Gets the type of the result.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathResultKind Kind { get; }
+```
+
+#### Property Value
+
+Type: `CloudNimble.Text.Xml.XPath.XPathResultKind`
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `InvalidOperationException` | This is a default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult). |
+
+## Methods
+
+### <Icon icon="code-merge" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="blue">Override</Badge>
+
+<Note>Inherited from `System.ValueType`</Note>
+
+#### Syntax
+
+```csharp
+public override bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool Equals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetBoolean
+
+Returns `boolean()` of the result.
+
+#### Syntax
+
+```csharp
+public bool GetBoolean()
+```
+
+#### Returns
+
+Type: `bool`
+Whether a node-set is not empty, a boolean itself, whether a number is neither zero nor NaN, and whether a
+string is not empty.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `InvalidOperationException` | This is a default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult). |
+
+### <Icon icon="code-merge" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="blue">Override</Badge>
+
+<Note>Inherited from `System.ValueType`</Note>
+
+#### Syntax
+
+```csharp
+public override int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetNodeSet
+
+Returns the node-set the result is.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNodeSet GetNodeSet()
+```
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNodeSet`
+The nodes, in document order.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `InvalidOperationException` | The result is not a node-set, or this is a default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult). |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetNumber
+
+Returns `number()` of the result.
+
+#### Syntax
+
+```csharp
+public double GetNumber()
+```
+
+#### Returns
+
+Type: `double`
+The number of the string-value of the first node of a node-set, or NaN for an empty one; 1 or 0 for a
+boolean; a number itself; and the number a string is, or NaN.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `InvalidOperationException` | This is a default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult). |
+| `ObjectDisposedException` | The result is a node-set whose document has been disposed. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetString
+
+Returns `string()` of the result.
+
+#### Syntax
+
+```csharp
+public string GetString()
+```
+
+#### Returns
+
+Type: `string`
+The string-value of the first node of a node-set, or an empty string for an empty one; `true` or
+`false`; a number as XPath writes it, with no exponent; and a string itself.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `InvalidOperationException` | This is a default [XPathResult](/api-reference/CloudNimble/Text/Xml/XPath/XPathResult). |
+| `ObjectDisposedException` | The result is a node-set whose document has been disposed. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetType <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public System.Type GetType()
+```
+
+#### Returns
+
+Type: `System.Type`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MemberwiseClone <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+protected internal object MemberwiseClone()
+```
+
+#### Returns
+
+Type: `object`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ReferenceEquals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool ReferenceEquals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-merge" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="blue">Override</Badge>
+
+<Note>Inherited from `System.ValueType`</Note>
+
+#### Syntax
+
+```csharp
+public override string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+

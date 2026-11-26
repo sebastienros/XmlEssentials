@@ -52,6 +52,7 @@
                 guides/use-utf8xmlreader;
                 guides/use-utf8xmlwriter;
                 guides/use-xmldocument;
+                guides/query-with-xpath;
                 guides/use-xmlnode
               </Pages>
             </Group>

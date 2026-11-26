@@ -322,6 +322,16 @@ namespace CloudNimble.XmlEssentials.Tests
         }
 
         [TestMethod]
+        [DataRow("<a xml:lang=\"\"><b/></a>", "lang('')", "true")]
+        [DataRow("<a xml:lang=\"\"><b/></a>", "lang('en')", "false")]
+        [DataRow("<a><b/></a>", "lang('')", "false")]
+        [DataRow("<a xml:lang=\"en\"><b xml:lang=\"\"/></a>", "lang('en')", "false")]
+        public void Lang_EmptyXmlLang_IsALanguage_AndNoneIsNot(string xml, string expression, string expected)
+        {
+            XPathRendering.Evaluate(xml, expression, "//b").Should().Be(expected);
+        }
+
+        [TestMethod]
         public void MaxOperations_IsTheRowsLookedAtPlusTheStringValuesRead()
         {
             using var document = XmlDocument.Parse("<a><b>1</b><b>2</b><b>3</b></a>");

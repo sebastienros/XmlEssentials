@@ -171,6 +171,11 @@ The writer's `XmlWriterOptions.Version` governs what can be written. A 1.1 docum
 
 Rows are stored in document order (STJ `JsonDocument.MetadataDb`): an element, its attributes, then its descendants. The document owns one pooled copy of the UTF-8 payload; names and unescaped values are offsets into it. Details and measurements: [optimization](23-optimization.md).
 
+Two internal members serve [XPath](27-xpath.md) and change nothing for a document that is never queried:
+
+- `GetParentTable()` returns one `int` for each row: the row of its parent element, or `-1` for a row no element is above (an attribute row holds its element). It is built the first time it is asked for, in one pass with no stack, and published with `Interlocked.CompareExchange`, so threads that race all get the same table. It is a plain array, not a pooled one, and `Dispose` lets it go. Only the XPath axes that walk up (and telling whether two adjacent text rows are siblings) ask for it.
+- `SliceMemory(start, length)` is `Slice` as `ReadOnlyMemory<byte>` over the document's own buffer, so that a string-value of one row is not copied. Nothing that holds such memory leaves an evaluation.
+
 ## DOM — mutable (JsonNode family)
 
 XML is not a property bag. The mutable tree is a real XML node list, not `JsonObject`.

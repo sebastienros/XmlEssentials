@@ -1,0 +1,434 @@
+---
+title: XPathExpression
+description: "A compiled XPath 1.0 expression, which can be evaluated over any number of [XmlDocument](/api-reference/CloudNimble/Text/Xml/XmlDocument) instances."
+icon: lock
+tag: "SEALED"
+keywords: ['XPathExpression', 'CloudNimble.Text.Xml.XPath.XPathExpression', 'CloudNimble.Text.Xml.XPath', 'class']
+---
+
+## Definition
+
+**Assembly:** CloudNimble.XmlEssentials.dll
+
+**Namespace:** CloudNimble.Text.Xml.XPath
+
+## Syntax
+
+```csharp
+CloudNimble.Text.Xml.XPath.XPathExpression
+```
+
+## Summary
+
+A compiled XPath 1.0 expression, which can be evaluated over any number of [XmlDocument](/api-reference/CloudNimble/Text/Xml/XmlDocument)
+instances.
+
+## Remarks
+
+An expression is immutable, and may be evaluated from several threads at once, over one document or many. It
+holds its names and literals as UTF-8 and compares them with the rows of the document byte for byte, so an
+evaluation transcodes nothing until it returns its result.
+
+## Examples
+
+```csharp
+var expensive = XPathExpression.Compile("/catalog/item[price > 10]/@id");
+using var document = XmlDocument.Parse(catalog);
+foreach (var id in expensive.Select(document))
+{
+    Console.WriteLine(id.GetString());
+}
+```
+
+## Constructors
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public Object()
+```
+
+## Properties
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Expression
+
+Gets the expression as it was compiled.
+
+#### Syntax
+
+```csharp
+public string Expression { get; }
+```
+
+#### Property Value
+
+Type: `string`
+
+## Methods
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Compile
+
+Compiles an XPath 1.0 expression.
+
+#### Syntax
+
+```csharp
+public static CloudNimble.Text.Xml.XPath.XPathExpression Compile(string expression, CloudNimble.Text.Xml.XPath.XPathOptions options = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `expression` | `string` | The expression. |
+| `options` | `CloudNimble.Text.Xml.XPath.XPathOptions?` | The prefixes the expression may use and the limits on it, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null) for none and the defaults. |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathExpression`
+The compiled expression.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentException` | *expression* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null), empty or white space.
+-or-
+[XPathOptions.Namespaces](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#namespaces) binds `xml` to another namespace, binds `xmlns`, or binds a
+prefix to an empty namespace URI. |
+| `XPathException` | The expression is not an XPath 1.0 expression; it uses a prefix that [XPathOptions.Namespaces](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#namespaces)
+does not bind, a function that is not a core function, or a function with the wrong number of arguments; or
+it is nested deeper than [XPathOptions.MaxDepth](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#maxdepth). [XPathException.Position](/api-reference/CloudNimble/Text/Xml/XPath/XPathException#position) says
+where. |
+
+#### Examples
+
+```csharp
+var options = new XPathOptions { Namespaces = new Dictionary<string, string> { ["a"] = "http://www.w3.org/2005/Atom" } };
+var titles = XPathExpression.Compile("//a:entry/a:title", options);
+```
+
+#### Remarks
+
+The whole expression is checked for syntax before its names are checked, so a syntax error anywhere is the
+error reported. A variable is not checked until the expression is evaluated.
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool Equals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Evaluate
+
+Evaluates the expression with the document node as the context node.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathResult Evaluate(CloudNimble.Text.Xml.XmlDocument document, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `document` | `CloudNimble.Text.Xml.XmlDocument` | The document. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathResult`
+The value of the expression.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *document* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | A variable the expression uses holds a node-set of another document. |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+does more work than [XPathOptions.MaxOperations](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#maxoperations). |
+
+#### Examples
+
+```csharp
+var count = XPathExpression.Compile("count(//item)").Evaluate(document).GetNumber();
+```
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Evaluate
+
+Evaluates the expression with a cursor's node as the context node.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathResult Evaluate(CloudNimble.Text.Xml.XmlElement context, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `context` | `CloudNimble.Text.Xml.XmlElement` | The context node. A cursor on a later text or CDATA section of a run stands for the text node of the whole run. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathResult`
+The value of the expression.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentException` | *context* is a default [XmlElement](/api-reference/CloudNimble/Text/Xml/XmlElement), a namespace declaration, or a text run with no
+characters, none of which is a node.
+-or-
+A variable the expression uses holds a node-set of another document. |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+does more work than [XPathOptions.MaxOperations](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#maxoperations). |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Evaluate
+
+Evaluates the expression with a node as the context node.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathResult Evaluate(CloudNimble.Text.Xml.XPath.XPathNode context, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `context` | `CloudNimble.Text.Xml.XPath.XPathNode` | The context node, which an earlier evaluation selected. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathResult`
+The value of the expression.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentException` | *context* is a default [XPathNode](/api-reference/CloudNimble/Text/Xml/XPath/XPathNode).
+-or-
+A variable the expression uses holds a node-set of another document. |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | A variable the expression uses has no value; a value that must be a node-set is not one; or the evaluation
+does more work than [XPathOptions.MaxOperations](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#maxoperations). |
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetType <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public System.Type GetType()
+```
+
+#### Returns
+
+Type: `System.Type`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MemberwiseClone <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+protected internal object MemberwiseClone()
+```
+
+#### Returns
+
+Type: `object`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ReferenceEquals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool ReferenceEquals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Select
+
+Evaluates the expression with the document node as the context node, and returns the node-set it yields.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNodeSet Select(CloudNimble.Text.Xml.XmlDocument document, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `document` | `CloudNimble.Text.Xml.XmlDocument` | The document. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNodeSet`
+The nodes, in document order.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *document* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | A variable the expression uses holds a node-set of another document. |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | The expression does not yield a node-set; or it fails as [XPathExpression.Evaluate](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#evaluate) does. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Select
+
+Evaluates the expression with a cursor's node as the context node, and returns the node-set it yields.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNodeSet Select(CloudNimble.Text.Xml.XmlElement context, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `context` | `CloudNimble.Text.Xml.XmlElement` | The context node. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNodeSet`
+The nodes, in document order.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentException` | *context* is not a node, or a variable holds a node-set of another document, as for
+[XPathExpression.Evaluate](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#evaluate). |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | The expression does not yield a node-set; or it fails as [XPathExpression.Evaluate](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#evaluate) does. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Select
+
+Evaluates the expression with a node as the context node, and returns the node-set it yields.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNodeSet Select(CloudNimble.Text.Xml.XPath.XPathNode context, CloudNimble.Text.Xml.XPath.XPathVariables variables = null)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `context` | `CloudNimble.Text.Xml.XPath.XPathNode` | The context node. |
+| `variables` | `CloudNimble.Text.Xml.XPath.XPathVariables?` | The values of the variables the expression uses, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNodeSet`
+The nodes, in document order.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentException` | *context* is a default [XPathNode](/api-reference/CloudNimble/Text/Xml/XPath/XPathNode), or a variable holds a node-set of another document. |
+| `ObjectDisposedException` | The document has been disposed. |
+| `XPathException` | The expression does not yield a node-set; or it fails as [XPathExpression.Evaluate](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#evaluate) does. |
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+

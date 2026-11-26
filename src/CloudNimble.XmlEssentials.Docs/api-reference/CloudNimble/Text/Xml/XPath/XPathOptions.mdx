@@ -1,0 +1,259 @@
+---
+title: XPathOptions
+description: "Options that control how an XPath expression is compiled and how much work its evaluation may do."
+icon: lock
+tag: "SEALED"
+keywords: ['XPathOptions', 'CloudNimble.Text.Xml.XPath.XPathOptions', 'CloudNimble.Text.Xml.XPath', 'class']
+---
+
+## Definition
+
+**Assembly:** CloudNimble.XmlEssentials.dll
+
+**Namespace:** CloudNimble.Text.Xml.XPath
+
+## Syntax
+
+```csharp
+CloudNimble.Text.Xml.XPath.XPathOptions
+```
+
+## Summary
+
+Options that control how an XPath expression is compiled and how much work its evaluation may do.
+
+## Remarks
+
+[XPathExpression.Compile](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#compile) copies what it needs from the options. Changing them afterwards changes
+nothing in an expression already compiled.
+
+## Examples
+
+```csharp
+var options = new XPathOptions { Namespaces = XmlDocument.DiscoverNamespaces(feed), MaxOperations = 1_000_000 };
+var titles = XPathExpression.Compile("/atom:feed/atom:entry/atom:title", options);
+```
+
+## Constructors
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor
+
+#### Syntax
+
+```csharp
+public XPathOptions()
+```
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public Object()
+```
+
+## Properties
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MaxDepth
+
+Gets or sets the deepest nesting an expression may have.
+
+#### Syntax
+
+```csharp
+public int MaxDepth { get; set; }
+```
+
+#### Property Value
+
+Type: `int`
+The limit, or 0 for the default of 64, the default depth limit of the reader. The whole expression is at
+depth 1, and an expression in parentheses, a function argument and a predicate are one deeper than the
+expression they are in. A run of operators, a path and a run of minus signs add no depth.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentOutOfRangeException` | The value is negative. |
+
+#### Remarks
+
+The limit bounds the recursion of the compiler and of the evaluation, so that an expression cannot exhaust
+the stack.
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MaxOperations
+
+Gets or sets the most work one evaluation of an expression may do.
+
+#### Syntax
+
+```csharp
+public long MaxOperations { get; set; }
+```
+
+#### Property Value
+
+Type: `long`
+The limit, or 0, the default, for no limit. Work is counted as the rows that the steps of the expression
+look at, plus the nodes that functions and comparisons read the string-value of.
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentOutOfRangeException` | The value is negative. |
+
+#### Remarks
+
+An expression is code. The size of a document is already bounded by
+[XmlDocumentOptions.MaxDocumentByteCount](/api-reference/CloudNimble/Text/Xml/XmlDocumentOptions#maxdocumentbytecount), and a fixed expression costs a fixed power of it.
+A caller who evaluates an expression it did not write sets this limit.
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Namespaces
+
+Gets or sets the prefixes an expression may use, with the namespace URIs they are bound to.
+
+#### Syntax
+
+```csharp
+public System.Collections.Generic.IReadOnlyDictionary<string, string> Namespaces { get; set; }
+```
+
+#### Property Value
+
+Type: `System.Collections.Generic.IReadOnlyDictionary<string, string>?`
+The namespace URIs, keyed by prefix, or [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null) for none. The result of
+[XmlDocument.DiscoverNamespaces](/api-reference/CloudNimble/Text/Xml/XmlDocument#discovernamespaces) can be assigned here.
+
+#### Remarks
+
+A name with no prefix in an expression is in no namespace, as the Recommendation says (section 2.3); the
+default namespace of a document does not apply to it. An entry with an empty prefix is therefore not used.
+
+The prefix `xml` is bound to `http://www.w3.org/XML/1998/namespace` without an entry. An entry that
+binds `xml` to anything else, binds `xmlns`, or binds a prefix to an empty URI is refused by
+[XPathExpression.Compile](/api-reference/CloudNimble/Text/Xml/XPath/XPathExpression#compile).
+
+## Methods
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool Equals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetType <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public System.Type GetType()
+```
+
+#### Returns
+
+Type: `System.Type`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MemberwiseClone <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+protected internal object MemberwiseClone()
+```
+
+#### Returns
+
+Type: `object`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ReferenceEquals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool ReferenceEquals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+

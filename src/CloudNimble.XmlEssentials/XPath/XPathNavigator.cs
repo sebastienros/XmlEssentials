@@ -473,7 +473,7 @@ namespace CloudNimble.Text.Xml.XPath
                 XPathNodeTestKind.Any or XPathNodeTestKind.Node => true,
                 XPathNodeTestKind.Name => NameEquals(in row, test),
                 XPathNodeTestKind.NamespaceWildcard => _document.NamespaceUri(in row).SequenceEqual(test.NamespaceUri),
-                // text(), comment() and processing-instruction() never pass an attribute.
+                // text(), comment() and processing-instruction() never pass an attribute, nor does a kind the parser never makes.
                 _ => false,
             };
         }
@@ -526,8 +526,9 @@ namespace CloudNimble.Text.Xml.XPath
                 XPathNodeTestKind.Node => true,
                 XPathNodeTestKind.Text => IsText(row.Kind),
                 XPathNodeTestKind.Comment => row.Kind is XmlValueKind.Comment,
-                // processing-instruction(), with or without a target.
-                _ => row.Kind is XmlValueKind.ProcessingInstruction && (test.Target is null || _document.LocalName(in row).SequenceEqual(test.Target)),
+                XPathNodeTestKind.ProcessingInstruction => row.Kind is XmlValueKind.ProcessingInstruction && (test.Target is null || _document.LocalName(in row).SequenceEqual(test.Target)),
+                // A kind the parser never makes passes nothing.
+                _ => false,
             };
         }
 

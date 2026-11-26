@@ -66,6 +66,7 @@ XmlEssentials does not share code, attributes, namespace, or package id with tha
 - XSD → types source generator (`AdditionalFiles` `*.xsd`) that feeds the serializer generator. No runtime schema validation.
 - Internal types serializable via source-gen (improvement over BCL `XmlSerializer`, which requires public types).
 - Deterministic, documented XML subset ([XML fidelity](02-xml-fidelity.md)).
+- XPath 1.0 over the read-only `XmlDocument`, in full: the 13 axes, every node test, the operators, variables and the 27 core functions, evaluated over the UTF-8 rows without a copy of the document ([XPath](27-xpath.md)).
 - `net10.0` and `net11.0` TFMs; `IsAotCompatible=true`; `EnableTrimAnalyzer=true`.
 - **100% line** on `CloudNimble.XmlEssentials.dll` as a **CI fail gate**: MTP `Microsoft.Testing.Extensions.CodeCoverage` **collects** (`dotnet test --coverage`); `coverage-gate.cs` **fails** the build if line-rate or branch-rate &lt; 1.00 ([K21](01-identity-and-decisions.md#key-decisions)). Not coverlet.runsettings. Breakdance public API baselines.
 - Fair BenchmarkDotNet comparison vs cached BCL `XmlSerializer` and vs STJ on the same object graph.

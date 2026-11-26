@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -32,6 +33,26 @@ namespace CloudNimble.Text.Xml.XPath
     {
 
         #region Fields
+
+        /// <summary>
+        /// The 13 axes by name, looked up with the name as a span of the expression.
+        /// </summary>
+        private static readonly FrozenDictionary<string, XPathAxis>.AlternateLookup<ReadOnlySpan<char>> Axes = new Dictionary<string, XPathAxis>
+        {
+            ["ancestor"] = XPathAxis.Ancestor,
+            ["ancestor-or-self"] = XPathAxis.AncestorOrSelf,
+            ["attribute"] = XPathAxis.Attribute,
+            ["child"] = XPathAxis.Child,
+            ["descendant"] = XPathAxis.Descendant,
+            ["descendant-or-self"] = XPathAxis.DescendantOrSelf,
+            ["following"] = XPathAxis.Following,
+            ["following-sibling"] = XPathAxis.FollowingSibling,
+            ["namespace"] = XPathAxis.Namespace,
+            ["parent"] = XPathAxis.Parent,
+            ["preceding"] = XPathAxis.Preceding,
+            ["preceding-sibling"] = XPathAxis.PrecedingSibling,
+            ["self"] = XPathAxis.Self,
+        }.ToFrozenDictionary(StringComparer.Ordinal).GetAlternateLookup<ReadOnlySpan<char>>();
 
         private static readonly XPathStep DescendantOrSelf = new(XPathAxis.DescendantOrSelf, XPathNodeTest.AnyNode, []);
 
@@ -113,23 +134,7 @@ namespace CloudNimble.Text.Xml.XPath
         /// <returns>The axis, or <see langword="null"/> for a name that is not one of the 13.</returns>
         private static XPathAxis? AxisNamed(ReadOnlySpan<char> name)
         {
-            return name switch
-            {
-                "ancestor" => XPathAxis.Ancestor,
-                "ancestor-or-self" => XPathAxis.AncestorOrSelf,
-                "attribute" => XPathAxis.Attribute,
-                "child" => XPathAxis.Child,
-                "descendant" => XPathAxis.Descendant,
-                "descendant-or-self" => XPathAxis.DescendantOrSelf,
-                "following" => XPathAxis.Following,
-                "following-sibling" => XPathAxis.FollowingSibling,
-                "namespace" => XPathAxis.Namespace,
-                "parent" => XPathAxis.Parent,
-                "preceding" => XPathAxis.Preceding,
-                "preceding-sibling" => XPathAxis.PrecedingSibling,
-                "self" => XPathAxis.Self,
-                _ => null,
-            };
+            return Axes.TryGetValue(name, out var axis) ? axis : null;
         }
 
         /// <summary>

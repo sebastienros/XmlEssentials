@@ -1,0 +1,231 @@
+---
+title: XPathNodeSet
+description: "The nodes an XPath expression selected, in document order and without duplicates."
+icon: lock
+tag: "SEALED"
+keywords: ['XPathNodeSet', 'CloudNimble.Text.Xml.XPath.XPathNodeSet', 'CloudNimble.Text.Xml.XPath', 'class', 'System.Collections.Generic.IReadOnlyList<CloudNimble.Text.Xml.XPath.XPathNode>', 'System.Collections.Generic.IReadOnlyCollection<CloudNimble.Text.Xml.XPath.XPathNode>', 'System.Collections.Generic.IEnumerable<CloudNimble.Text.Xml.XPath.XPathNode>', 'System.Collections.IEnumerable']
+---
+
+## Definition
+
+**Assembly:** CloudNimble.XmlEssentials.dll
+
+**Namespace:** CloudNimble.Text.Xml.XPath
+
+## Syntax
+
+```csharp
+CloudNimble.Text.Xml.XPath.XPathNodeSet
+```
+
+## Summary
+
+The nodes an XPath expression selected, in document order and without duplicates.
+
+## Remarks
+
+A node-set holds its document and the ids of its nodes; each [XPathNode](/api-reference/CloudNimble/Text/Xml/XPath/XPathNode) is a cursor into the
+document, used before it is disposed. `foreach` uses a struct enumerator, so it does not allocate. The
+order of the namespace nodes of one element is the order of their declarations, with `xml` first, and
+the order of the attributes of one element is the order of the start tag.
+
+## Examples
+
+```csharp
+var items = XPathExpression.Compile("/catalog/item").Select(document);
+for (var i = 0; i < items.Count; i++)
+{
+    var id = items[i].GetElement().GetAttribute("id").GetInt32();
+}
+```
+
+## Constructors
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public Object()
+```
+
+## Properties
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Count
+
+Gets the number of nodes.
+
+#### Syntax
+
+```csharp
+public int Count { get; }
+```
+
+#### Property Value
+
+Type: `int`
+
+### <Icon icon="tag" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> this[]
+
+Gets the node at an index, in document order.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNode this { get; }
+```
+
+#### Property Value
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNode`
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentOutOfRangeException` | *index* is negative, or not less than [XPathNodeSet.Count](/api-reference/CloudNimble/Text/Xml/XPath/XPathNodeSet#count). |
+
+## Methods
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool Equals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetEnumerator
+
+Returns an enumerator over the nodes, in document order.
+
+#### Syntax
+
+```csharp
+public CloudNimble.Text.Xml.XPath.XPathNodeSet.Enumerator GetEnumerator()
+```
+
+#### Returns
+
+Type: `CloudNimble.Text.Xml.XPath.XPathNodeSet.Enumerator`
+The enumerator, which is a struct.
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetType <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public System.Type GetType()
+```
+
+#### Returns
+
+Type: `System.Type`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MemberwiseClone <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+protected internal object MemberwiseClone()
+```
+
+#### Returns
+
+Type: `object`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ReferenceEquals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool ReferenceEquals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+
+## Related APIs
+
+- System.Collections.Generic.IReadOnlyList&lt;CloudNimble.Text.Xml.XPath.XPathNode&gt;
+- System.Collections.Generic.IReadOnlyCollection&lt;CloudNimble.Text.Xml.XPath.XPathNode&gt;
+- System.Collections.Generic.IEnumerable&lt;CloudNimble.Text.Xml.XPath.XPathNode&gt;
+- System.Collections.IEnumerable
+

@@ -45,6 +45,7 @@
           "guides/use-utf8xmlreader",
           "guides/use-utf8xmlwriter",
           "guides/use-xmldocument",
+          "guides/query-with-xpath",
           "guides/use-xmlnode"
         ]
       },
@@ -208,6 +209,22 @@
                           "api-reference/CloudNimble/Text/Xml/Serialization/XmlUnknownDerivedTypeHandling",
                           "api-reference/CloudNimble/Text/Xml/Serialization/XmlUnknownTypeHandling",
                           "api-reference/CloudNimble/Text/Xml/Serialization/XmlUnmappedMemberHandling"
+                        ]
+                      },
+                      {
+                        "group": "XPath",
+                        "icon": "folder-tree",
+                        "pages": [
+                          "api-reference/CloudNimble/Text/Xml/XPath/index",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathException",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathExpression",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathNode",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathNodeKind",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathNodeSet",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathOptions",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathResult",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathResultKind",
+                          "api-reference/CloudNimble/Text/Xml/XPath/XPathVariables"
                         ]
                       }
                     ]

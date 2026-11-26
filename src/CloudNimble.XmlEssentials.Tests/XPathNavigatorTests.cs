@@ -190,6 +190,8 @@ namespace CloudNimble.XmlEssentials.Tests
         [DataRow("e", XPathAxis.Namespace, "{urn:a}a", "")]
         [DataRow("e", XPathAxis.Namespace, "{urn:a}*", "")]
         [DataRow("e", XPathAxis.Namespace, "comment()", "")]
+        [DataRow("e", XPathAxis.Namespace, "text()", "")]
+        [DataRow("e", XPathAxis.Namespace, "processing-instruction()", "")]
         [DataRow("e", XPathAxis.Preceding, "*", "")]
         [DataRow("e", XPathAxis.FollowingSibling, "*", "g")]
         [DataRow("@a:x", XPathAxis.Self, "*", "")]

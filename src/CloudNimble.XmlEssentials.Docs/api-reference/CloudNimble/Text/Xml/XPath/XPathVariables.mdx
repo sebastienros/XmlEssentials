@@ -1,0 +1,286 @@
+---
+title: XPathVariables
+description: "The values of the variables an XPath expression refers to as `$name`."
+icon: lock
+tag: "SEALED"
+keywords: ['XPathVariables', 'CloudNimble.Text.Xml.XPath.XPathVariables', 'CloudNimble.Text.Xml.XPath', 'class']
+---
+
+## Definition
+
+**Assembly:** CloudNimble.XmlEssentials.dll
+
+**Namespace:** CloudNimble.Text.Xml.XPath
+
+## Syntax
+
+```csharp
+CloudNimble.Text.Xml.XPath.XPathVariables
+```
+
+## Summary
+
+The values of the variables an XPath expression refers to as `$name`.
+
+## Remarks
+
+A variable is named by its local name and its namespace URI. A prefix in the expression, as in
+`$p:name`, is resolved with [XPathOptions.Namespaces](/api-reference/CloudNimble/Text/Xml/XPath/XPathOptions#namespaces) when the expression is compiled.
+
+The same instance may be passed to any number of evaluations. It is not safe to set a value while an
+evaluation that uses the instance runs on another thread.
+
+## Examples
+
+```csharp
+var byId = XPathExpression.Compile("/feed/entry[@id = $id]/title");
+var variables = new XPathVariables();
+variables.Set("id", "urn:entry:7");
+var title = byId.Evaluate(document, variables).GetString();
+```
+
+## Constructors
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor
+
+#### Syntax
+
+```csharp
+public XPathVariables()
+```
+
+### <Icon icon="hammer" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> .ctor <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public Object()
+```
+
+## Methods
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual bool Equals(object obj)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `obj` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Equals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool Equals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetHashCode <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual int GetHashCode()
+```
+
+#### Returns
+
+Type: `int`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> GetType <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public System.Type GetType()
+```
+
+#### Returns
+
+Type: `System.Type`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> MemberwiseClone <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+protected internal object MemberwiseClone()
+```
+
+#### Returns
+
+Type: `object`
+
+### <Icon icon="thumbtack" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ReferenceEquals <Badge color="gray">Inherited</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public static bool ReferenceEquals(object objA, object objB)
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `objA` | `object?` | - |
+| `objB` | `object?` | - |
+
+#### Returns
+
+Type: `bool`
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Set
+
+Sets a variable to a string.
+
+#### Syntax
+
+```csharp
+public void Set(string localName, string value, string namespaceUri = "")
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `localName` | `string` | The local name of the variable. |
+| `value` | `string` | The value. |
+| `namespaceUri` | `string` | The namespace URI of the variable, or empty for no namespace. |
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *localName*, *value* or *namespaceUri* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | *localName* is empty or white space, or *value* holds a surrogate that is not part of a pair. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Set
+
+Sets a variable to a number.
+
+#### Syntax
+
+```csharp
+public void Set(string localName, double value, string namespaceUri = "")
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `localName` | `string` | The local name of the variable. |
+| `value` | `double` | The value, which may be NaN or an infinity. |
+| `namespaceUri` | `string` | The namespace URI of the variable, or empty for no namespace. |
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *localName* or *namespaceUri* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | *localName* is empty or white space. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Set
+
+Sets a variable to a boolean.
+
+#### Syntax
+
+```csharp
+public void Set(string localName, bool value, string namespaceUri = "")
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `localName` | `string` | The local name of the variable. |
+| `value` | `bool` | The value. |
+| `namespaceUri` | `string` | The namespace URI of the variable, or empty for no namespace. |
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *localName* or *namespaceUri* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | *localName* is empty or white space. |
+
+### <Icon icon="function" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> Set
+
+Sets a variable to a node-set.
+
+#### Syntax
+
+```csharp
+public void Set(string localName, CloudNimble.Text.Xml.XPath.XPathNodeSet value, string namespaceUri = "")
+```
+
+#### Parameters
+
+| Name | Type | Description |
+|------|------|-------------|
+| `localName` | `string` | The local name of the variable. |
+| `value` | `CloudNimble.Text.Xml.XPath.XPathNodeSet` | The value: a node-set that an evaluation over the same document returned. |
+| `namespaceUri` | `string` | The namespace URI of the variable, or empty for no namespace. |
+
+#### Exceptions
+
+| Exception | Description |
+|-----------|-------------|
+| `ArgumentNullException` | *localName*, *value* or *namespaceUri* is [`null`](https://learn.microsoft.com/dotnet/csharp/language-reference/keywords/null). |
+| `ArgumentException` | *localName* is empty or white space. |
+
+#### Remarks
+
+The node-set can be used only in an evaluation over the document it came from. Using it in an evaluation
+over another document throws [ArgumentException](https://learn.microsoft.com/dotnet/api/system.argumentexception) from that evaluation.
+
+### <Icon icon="code-fork" iconType="duotone" color="#419AC5" size={24} className="mr-2" /> ToString <Badge color="gray">Inherited</Badge> <Badge color="orange">Virtual</Badge>
+
+<Note>Inherited from `object`</Note>
+
+#### Syntax
+
+```csharp
+public virtual string ToString()
+```
+
+#### Returns
+
+Type: `string?`
+

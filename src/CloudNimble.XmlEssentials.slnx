@@ -37,6 +37,8 @@
     <File Path="../spec/23-optimization.md" />
     <File Path="../spec/24-doc-findings-resolution.md" />
     <File Path="../spec/25-single-engine-metadata.md" />
+    <File Path="../spec/26-expanded-encoding-support.md" />
+    <File Path="../spec/27-xpath.md" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path="../.gitignore" />

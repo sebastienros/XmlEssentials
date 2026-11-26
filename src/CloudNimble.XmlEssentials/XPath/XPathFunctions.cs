@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Frozen;
+using System.Linq;
 
 namespace CloudNimble.Text.Xml.XPath
 {
@@ -24,7 +26,7 @@ namespace CloudNimble.Text.Xml.XPath
         ];
 
         /// <summary>
-        /// The name of each function.
+        /// The name of each function, in the order of <see cref="XPathFunction"/>.
         /// </summary>
         private static readonly string[] Names =
         [
@@ -32,6 +34,12 @@ namespace CloudNimble.Text.Xml.XPath
             "contains", "substring-before", "substring-after", "substring", "string-length", "normalize-space",
             "translate", "boolean", "not", "true", "false", "lang", "number", "sum", "floor", "ceiling", "round",
         ];
+
+        /// <summary>
+        /// The functions by name, looked up with the name as a span of the expression.
+        /// </summary>
+        private static readonly FrozenDictionary<string, XPathFunction>.AlternateLookup<ReadOnlySpan<char>> ByName =
+            Enumerable.Range(0, Names.Length).ToFrozenDictionary(i => Names[i], i => (XPathFunction)i, StringComparer.Ordinal).GetAlternateLookup<ReadOnlySpan<char>>();
 
         /// <summary>
         /// The most arguments each function takes.
@@ -86,39 +94,7 @@ namespace CloudNimble.Text.Xml.XPath
         /// <returns><see langword="true"/> when the name is that of a core function.</returns>
         internal static bool TryFind(ReadOnlySpan<char> name, out XPathFunction function)
         {
-            XPathFunction? found = name switch
-            {
-                "last" => XPathFunction.Last,
-                "position" => XPathFunction.Position,
-                "count" => XPathFunction.Count,
-                "id" => XPathFunction.Id,
-                "local-name" => XPathFunction.LocalName,
-                "namespace-uri" => XPathFunction.NamespaceUri,
-                "name" => XPathFunction.Name,
-                "string" => XPathFunction.String,
-                "concat" => XPathFunction.Concat,
-                "starts-with" => XPathFunction.StartsWith,
-                "contains" => XPathFunction.Contains,
-                "substring-before" => XPathFunction.SubstringBefore,
-                "substring-after" => XPathFunction.SubstringAfter,
-                "substring" => XPathFunction.Substring,
-                "string-length" => XPathFunction.StringLength,
-                "normalize-space" => XPathFunction.NormalizeSpace,
-                "translate" => XPathFunction.Translate,
-                "boolean" => XPathFunction.Boolean,
-                "not" => XPathFunction.Not,
-                "true" => XPathFunction.True,
-                "false" => XPathFunction.False,
-                "lang" => XPathFunction.Lang,
-                "number" => XPathFunction.Number,
-                "sum" => XPathFunction.Sum,
-                "floor" => XPathFunction.Floor,
-                "ceiling" => XPathFunction.Ceiling,
-                "round" => XPathFunction.Round,
-                _ => null,
-            };
-            function = found.GetValueOrDefault();
-            return found.HasValue;
+            return ByName.TryGetValue(name, out function);
         }
 
         #endregion

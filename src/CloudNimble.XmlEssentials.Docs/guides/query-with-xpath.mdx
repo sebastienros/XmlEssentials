@@ -1,0 +1,147 @@
+---
+title: "How to query an XmlDocument with XPath"
+sidebarTitle: "Query with XPath"
+description: "Compile an XPath 1.0 expression once, evaluate it over any XmlDocument, and read the result as nodes, a boolean, a number or a string."
+icon: "magnifying-glass"
+---
+
+`XPathExpression` evaluates XPath 1.0 over the read-only [`XmlDocument`](/guides/use-xmldocument). You compile an expression once, then evaluate it as many times as you like, over one document or many, from any number of threads. The engine reads the document's own UTF-8 rows: a name test or a comparison with a literal is a comparison of bytes, and nothing is turned into a `string` until you ask for a result.
+
+The whole of XPath 1.0 is there: the 13 axes, every node test, predicates, the operators, variables and the 27 core functions of the [W3C Recommendation](https://www.w3.org/TR/1999/REC-xpath-19991116/).
+
+<Note>
+These types are in the `CloudNimble.Text.Xml.XPath` namespace. They share their names with `System.Xml.XPath`, so a file that imports both namespaces needs an alias or a fully qualified name.
+</Note>
+
+## Select nodes
+
+`XPathExpression.Compile` parses the expression and checks it. `Select` evaluates it with the document node as the context node and returns an `XPathNodeSet`: the nodes, in document order, without duplicates.
+
+```csharp
+using XmlDocument document = XmlDocument.Parse(Catalog);
+XPathExpression expensive = XPathExpression.Compile("/catalog/book[price > 20]/title");
+
+foreach (XPathNode title in expensive.Select(document))
+{
+    output.WriteLine($"{title.LocalName}: {title.GetString()}");
+}
+```
+
+The code produces the following output:
+
+```text
+title: XML in Practice
+title: Le XML
+```
+
+What to notice:
+
+- Compile an expression once and keep it. An `XPathExpression` is immutable, so a `static readonly` field is a good home for one.
+- `XPathNode` is a small struct that points into the document, like `XmlElement`. `Kind`, `LocalName`, `NamespaceUri`, `Prefix` and `GetString()` describe it. `GetElement()` and `TryGetElement` give you the `XmlElement` cursor on the same row, so you can go on with `GetAttribute`, `GetInt32` and the rest.
+- The nodes, like every `XmlElement`, are used before the document is disposed. Using one afterwards throws `ObjectDisposedException`.
+- `foreach` over an `XPathNodeSet` doesn't allocate.
+
+[View the complete sample on GitHub](https://github.com/CloudNimble/XmlEssentials/blob/main/src/CloudNimble.XmlEssentials.Samples/47_QueryWithXPath.cs)
+
+## Read a boolean, a number or a string
+
+`Evaluate` returns an `XPathResult`, whose `Kind` is `NodeSet`, `Boolean`, `Number` or `String`. `GetBoolean()`, `GetNumber()` and `GetString()` convert a result of any kind the way the XPath functions `boolean()`, `number()` and `string()` do. `GetNodeSet()` returns the nodes of a node-set and throws for any other kind.
+
+```csharp
+XPathResult every = XPathExpression.Compile("not(/catalog/book[not(price)])").Evaluate(document);
+output.WriteLine($"{every.Kind}: {every.GetBoolean()}");
+
+XPathResult average = XPathExpression.Compile("sum(//price) div count(//book)").Evaluate(document);
+output.WriteLine($"{average.Kind}: {average.GetString()}");
+```
+
+The code produces the following output:
+
+```text
+Boolean: True
+Number: 25.483333333333334
+```
+
+What to notice:
+
+- `GetString()` of a number writes it as XPath does: no exponent, `NaN`, `Infinity`, `-Infinity`, and `0` for both zeros. `GetNumber()` gives the `double` itself.
+- `string()` of a string is culture-independent, and so is `number()`: it accepts optional white space, an optional `-` and digits with an optional decimal point, and nothing else, so `number('1e3')` and `number('+1')` are `NaN`.
+
+## Evaluate from an element, with variables and prefixes
+
+Every `Evaluate` and `Select` has three overloads: from an `XmlDocument` (the context node is the document node), from an `XmlElement` cursor, and from an `XPathNode` that an earlier query returned. A relative path such as `title` or `@lang` is evaluated from that node.
+
+A variable `$name` takes its value from an `XPathVariables`, which holds strings, numbers, booleans and node-sets. A prefix in the expression must be bound in `XPathOptions.Namespaces`: the default namespace of the document does not apply to a name with no prefix, which is in no namespace, as the Recommendation says.
+
+```csharp
+var options = new XPathOptions { Namespaces = new Dictionary<string, string> { ["m"] = "urn:media" } };
+XPathExpression describe = XPathExpression.Compile(
+    "concat(title, ' (', @lang, ', ', $currency, price, ')', substring(' soft cover', 1, 11 * boolean(m:cover)))", options);
+
+var variables = new XPathVariables();
+variables.Set("currency", "EUR ");
+foreach (XmlElement book in document.RootElement.EnumerateChildren())
+{
+    if (book.ValueKind is XmlValueKind.Element)
+    {
+        output.WriteLine(describe.Evaluate(book, variables).GetString());
+    }
+}
+```
+
+The code produces the following output:
+
+```text
+XML in Practice (en, EUR 39.95)
+Le XML (fr, EUR 24.50) soft cover
+Paths and Queries (en, EUR 12.00)
+```
+
+What to notice:
+
+- The prefix `xml` is always bound, so `@xml:lang` works without an entry.
+- `XPathOptions.Namespaces` takes the result of `XmlDocument.DiscoverNamespaces`, so you can query a document with the prefixes it declares.
+- A node-set variable is used only over the document it came from. Variables are looked up when the expression is evaluated, so a missing one throws `XPathException` then, not when it's compiled.
+
+## Handle errors
+
+Everything that is wrong with the expression itself throws `XPathException` from `Compile`: a syntax error, a prefix that isn't bound, a function that isn't one of the 27, or a call with the wrong number of arguments. `XPathException.Position` is the zero-based character offset of the problem.
+
+```csharp
+try
+{
+    XPathExpression.Compile("/catalog/book[");
+}
+catch (XPathException ex)
+{
+    // ex.Message is "Expected an expression." and ex.Position is 14.
+}
+```
+
+A variable with no value, an operand that must be a node-set and isn't (as in `count(1)` or `1 | /catalog`), and a limit throw `XPathException` from `Evaluate`. A context that isn't a node, such as a default `XmlElement` or a namespace declaration, throws `ArgumentException`.
+
+## The data model
+
+The nodes are those of the document as it was parsed:
+
+- The document node is the parent of the document element and of the comments and processing instructions around it.
+- A text node is a run of adjacent text and CDATA sections, such as `A<![CDATA[B]]>C`, which `text()` selects once and whose string-value is `ABC`. An empty CDATA section on its own is not a node.
+- Namespace declarations (`xmlns`, `xmlns:p`) are not attributes. Each element has a namespace node for every prefix in scope on it, and one for `xml`. They come before its attributes in document order, `xml` first, then in the order of their declarations.
+- With `XmlCommentHandling.Skip` there are no comment nodes, and the text on either side of a skipped comment is one text node. With `XmlWhitespaceHandling.Insignificant` there are no white-space text nodes between elements.
+- `string-length`, `substring` and `translate` count Unicode characters, so `string-length('😀')` is 1.
+- `id()` returns an empty node-set: without a DTD no attribute has type ID.
+
+## Limits and security
+
+An expression is code. Its cost can grow as a power of the size of the document: `//a[//a[//a]]` looks at every element for every element for every element. When you evaluate an expression that you didn't write, set limits:
+
+| Option | Default | What it bounds |
+| --- | --- | --- |
+| `XPathOptions.MaxOperations` | 0, no limit | The rows the steps look at plus the string-values read, across one evaluation. Exceeding it throws `XPathException`. |
+| `XPathOptions.MaxDepth` | 64 | The nesting of parentheses, function arguments and predicates. A long run of operators or of steps adds no depth. |
+
+The size of the document is bounded by [`XmlDocumentOptions.MaxDocumentByteCount`](/guides/security).
+
+## Threads
+
+A compiled `XPathExpression` may be evaluated from several threads at once, over one document or over different documents. The first query that walks up the tree (a `parent` or ancestor step, a sibling step, the `namespace` axis or `lang()`) builds a table of parents for the document; threads that race to build it all get the same one. A query that only goes down, such as `/feed/entry[@id = $id]/title`, never builds it. `XPathVariables` may be shared, but not changed while an evaluation that uses it runs.

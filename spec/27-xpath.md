@@ -2,7 +2,7 @@
 
 Part of the [XmlEssentials spec](README.md).
 
-This file is the design for evaluating **XPath 1.0** expressions over the read-only `XmlDocument`. Its centre is the **navigator**: the layer that presents the document's row store as the XPath data model. Nothing here is implemented yet. The task list is at the end.
+This file is the design for evaluating **XPath 1.0** expressions over the read-only `XmlDocument`. Its centre is the **navigator**: the layer that presents the document's row store as the XPath data model. It is implemented (PR 15, `src/CloudNimble.XmlEssentials/XPath`). Where building it showed the first draft of this file to be wrong or incomplete, the file was corrected in the same commit; the list is under [changes from the first draft](#changes-from-the-first-draft). The task list is at the end.
 
 The engine is a port of the XPath 1.0 engine in [Xemele](https://github.com/sebastienros/xemele) (`src/Xemele/XPath`, MIT). The grammar, the conversions and the 27 core functions come from there. The navigator does not: Xemele's copies the whole document into strings before it evaluates anything, and that is the part this design replaces.
 
@@ -137,15 +137,14 @@ namespace CloudNimble.Text.Xml.XPath
         internal long Select(long context, XPathAxis axis, XPathNodeTest test, ref XPathIdBuffer output);
 
         internal XPathNodeKind KindOf(long id);
-        internal long ParentOf(long id);                       // -1 for the document node
 
         internal ReadOnlySpan<byte> LocalName(long id);        // element, attribute: local name; PI: target; namespace: prefix; else empty
         internal ReadOnlySpan<byte> NamespaceUri(long id);     // element, attribute; else empty
         internal ReadOnlySpan<byte> Prefix(long id);           // element, attribute; else empty
 
         internal ReadOnlyMemory<byte> StringValue(long id);    // see String-values
-        internal ReadOnlySpan<byte> Language(long id);         // the xml:lang in scope, for lang()
-        internal long FromElement(XmlElement element);         // a public cursor to an id; throws ArgumentException for a non-node
+        internal bool Language(long id, out ReadOnlySpan<byte> value);   // the xml:lang in scope, for lang(); false when there is none
+        internal long FromElement(XmlElement element, string parameterName);   // a public cursor to an id; throws ArgumentException for a non-node
     }
 }
 ```
@@ -156,7 +155,7 @@ namespace CloudNimble.Text.Xml.XPath
 
 ### Axes
 
-For a row `r`: `IsElement(r)`; `End(r)` is the element's end index; `FirstChild(r) = r + 1 + AttributeCount(r)`; `Next(r) = IsElement(r) ? End(r) : r + 1` (`XmlDocument.NextSiblingIndex`); `P(r)` is the parent table; `n` is the row count. "Content rows" means rows that are not of kind `Attribute`, with a text row counted only when it is a text node.
+For a row `r`: `IsElement(r)`; `End(r)` is the element's end index; `FirstChild(r) = r + 1 + AttributeCount(r)`; `Next(r) = IsElement(r) ? End(r) : r + 1` (`XmlDocument.NextSiblingIndex`); `P(r)` is the parent table; `n` is the row count. "Content rows" means rows that are not of kind `Attribute`, with a text row counted only when it is a text node. A walk over siblings finds the end of a text run without the parent table: the row after a leaf, when it is before the end of the leaf's parent, is the leaf's next sibling.
 
 From **an element or a leaf at row `r`**:
 
@@ -169,9 +168,9 @@ From **an element or a leaf at row `r`**:
 | `parent` | `P(r)`, or the document node when it is `-1` |
 | `ancestor` | `P(r)`, `P(P(r))`, … and then the document node |
 | `ancestor-or-self` | `ancestor`, then `r` |
-| `following-sibling` | `s = Next(r)`; while `s < End(P(r))`, or `s < n` when `P(r)` is `-1`; `s = Next(s)` |
+| `following-sibling` | `s = Next(r)`, or the row after its run for a text node; while `s < End(P(r))`, or `s < n` when `P(r)` is `-1`; `s = Next(s)` |
 | `preceding-sibling` | `s = FirstChild(P(r))`, or `0` when `P(r)` is `-1`; while `s < r`; `s = Next(s)` |
-| `following` | Content rows in `[Next(r), n)` |
+| `following` | Content rows in `[Next(r), n)`, where `Next(r)` of a text node is the row after its run |
 | `preceding` | Content rows `i` in `[0, r)` that are not an ancestor of `r`: not (`IsElement(i)` and `End(i) > r`) |
 | `attribute` | Element only: rows `r + 1 … r + AttributeCount(r)` that are not namespace declarations |
 | `namespace` | Element only: see below |
@@ -220,12 +219,14 @@ The evaluator is a plain recursive walk of the AST. Xemele runs its evaluator on
 - **Values.** A value is a node-set (ascending `long[]` and a count), a `double`, a `bool`, or a string held as UTF-8 (`ReadOnlyMemory<byte>`).
 - **A step** takes each context node in order, calls `Select`, and runs the predicates over what it appended, one predicate after another, each with the size the last one left. The results for all context nodes go into one list. If that list is not ascending it is sorted; then duplicates are dropped. A step with no predicate lets `Select` append to the result directly.
 - **A predicate** whose value is a number passes when the number equals the proximity position; any other value is converted with `boolean()`.
-- **Comparisons** follow Recommendation §3.4. A node-set compared with a string compares the UTF-8 of each string-value with the UTF-8 of the string. Compared with a number, each string-value is parsed as a number from its bytes.
+- **Comparisons** follow Recommendation §3.4. A node-set compared with a string compares the UTF-8 of each string-value with the UTF-8 of the string. Compared with a number, each string-value is parsed as a number from its bytes. Two node-sets are compared in time linear in their sizes, each string-value read once: `=` puts the string-values of the smaller set in a hash set and looks up those of the other; `!=` is true when not every string-value of the two is the same; a relational operator compares the least and the greatest number of each set, NaN left out.
+- **Operators.** A run of operators at one level of precedence (`a or b or c`, `1 + 2 - 3`, `a | b | c`) is one node of the tree, evaluated left to right, and a run of unary minus signs is one node that remembers whether their number is odd. A long run therefore costs neither depth nor recursion. `or` and `and` stop at the first operand that decides them.
+- **A predicate that is a number literal**, such as `[1]`, picks its node by position without evaluating anything for each candidate.
 - **Numbers.** `number()` of a string accepts optional white space, an optional `-`, and `Digits ('.' Digits?)? | '.' Digits`; anything else is `NaN`. No `+`, no exponent, no `Infinity`. `string()` of a number writes no exponent, `NaN`, `Infinity`, `-Infinity`, and `0` for both zeros. Port `XPathConversions.ParseNumber` and `FormatNumber` from Xemele, on bytes.
 - **Characters are Unicode code points.** `string-length`, `substring` and `translate` count code points, as the Recommendation says (§4.2, "characters"), which in UTF-8 is counting the bytes that are not continuation bytes. `System.Xml` counts UTF-16 code units, so `string-length('😀')` is 1 here and 2 there. `contains`, `starts-with`, `substring-before` and `substring-after` search bytes, which is exact for well-formed UTF-8.
 - **`lang()`** reads `Language` and compares without regard to ASCII case, accepting a value that is the argument or the argument followed by `-`.
-- **`id()`** converts its argument as the Recommendation says and returns the empty node-set.
-- **Limits.** `MaxDepth` bounds the nesting of an expression (default 64, the default depth limit of the reader). `MaxOperations` bounds the rows `Select` looks at plus the nodes the functions read, across one `Evaluate`; `0`, the default, is no limit. Exceeding either throws `XPathException`. An expression is code: the size of the document is already bounded by `MaxDocumentByteCount`, and a fixed expression costs a fixed power of it. A caller who evaluates an expression it did not write sets `MaxOperations` ([security](18-security.md) gains a row).
+- **`id()`** evaluates its argument, so an error in it is reported, and returns the empty node-set. It reads no string-value: no attribute has type ID, so none could match.
+- **Limits.** `MaxDepth` bounds the nesting of an expression (default 64, the default depth limit of the reader): the whole expression is at depth 1, and an expression in parentheses, a function argument and a predicate are one deeper than the expression they are in. A path, a run of operators and a run of minus signs add no depth. The compiler and the evaluator also call `RuntimeHelpers.EnsureSufficientExecutionStack` as they recurse. `MaxOperations` bounds the rows `Select` looks at plus one for each string-value that a function or a comparison reads, across one `Evaluate`; `0`, the default, is no limit. Exceeding either throws `XPathException`. An expression is code: the size of the document is already bounded by `MaxDocumentByteCount`, and a fixed expression costs a fixed power of it. A caller who evaluates an expression it did not write sets `MaxOperations` ([security](18-security.md) gains a row).
 
 ## Public API
 
@@ -296,15 +297,21 @@ namespace CloudNimble.Text.Xml.XPath
 
     public sealed class XPathException : Exception
     {
+        public XPathException(string message);
+        public XPathException(string message, Exception? innerException);
+        public XPathException(string message, int? position);
         public int? Position { get; }   // the zero-based character offset in the expression, when the error has one
     }
 }
 ```
 
-- `Compile` copies what it needs from the options; changing them afterwards changes nothing. An `XPathExpression` is immutable and may be evaluated from several threads at once, over one document or many.
+- `Compile` copies what it needs from the options; changing them afterwards changes nothing. An `XPathExpression` is immutable and may be evaluated from several threads at once, over one document or many. An expression that is `null`, empty or white space is `ArgumentException`, as for every string parameter of the library.
+- `xml` is bound to `http://www.w3.org/XML/1998/namespace` without an entry in `Namespaces`. An entry with an empty prefix (the default namespace, which `DiscoverNamespaces` returns) is not used. An entry that binds `xml` to another URI, binds `xmlns`, or binds a prefix to an empty URI is `ArgumentException` from `Compile`. Negative `MaxDepth` and `MaxOperations` are `ArgumentOutOfRangeException` from their setters.
+- The whole expression is parsed before its names are checked, so a syntax error anywhere is reported before an unbound prefix, an unknown function or a wrong count of arguments (as Xemele does). Every character of an expression must be an XML 1.0 character, and `$` is followed by its QName with no white space, as the `VariableReference` token is written.
 - A prefix in the expression that `Namespaces` does not bind, an unknown function, a wrong number of arguments and a syntax error are `XPathException` from `Compile`, each with a `Position`. A variable with no value, a value of the wrong type where a node-set is required, and a limit are `XPathException` from `Evaluate`. The messages are part of the contract, as the reader's are ([testing](14-testing.md)).
 - A default `XmlElement` or `XPathNode`, a namespace declaration, and a node-set variable from another document are `ArgumentException`. A disposed document is `ObjectDisposedException`.
-- `XPathNode` and `XPathNodeSet` are cursors into the document, like `XmlElement`: they are used before the document is disposed. A default `XPathNode` throws `InvalidOperationException` from every member, as a default `XmlElement` does.
+- `XPathNode` and `XPathNodeSet` are cursors into the document, like `XmlElement`: they are used before the document is disposed. A default `XPathNode` throws `InvalidOperationException` from every member but `Equals`, `GetHashCode` and the operators, as a default `XmlElement` does. A default `XPathResult` throws `InvalidOperationException` from every member.
+- A string variable that holds a surrogate that is not part of a pair is `ArgumentException` from `XPathVariables.Set`. A node-set variable from another document is `ArgumentException` when an evaluation reads it, not when it is set, so one `XPathVariables` can serve several documents.
 - The names collide with `System.Xml.XPath`, as `XmlDocument` and `XmlElement` collide with `System.Xml`. That is accepted for the same reason ([DOM](06-api-dom.md)).
 
 ## What comes from Xemele
@@ -341,6 +348,50 @@ The code follows this repository's rules, not Xemele's: one type to a file, bloc
 - [Overview](00-overview.md): XPath 1.0 among the goals.
 - [PR plan](22-pr-plan.md): the status of PR 15.
 - A guide page for XPath, a sample for each result kind, XML documentation on every public member, and the Breakdance baseline for the new surface.
+
+## Messages
+
+The messages are part of the contract, as the reader's are. `Position` is the offset of the token named, or the length of the expression when it ended too soon.
+
+| From | Message | Position |
+| --- | --- | --- |
+| `Compile` | `Expected an expression.` | Where an operand must start |
+| `Compile` | `Expected ')'.`, `Expected ']'.` | The token found instead |
+| `Compile` | `Expected a location step.` | After `/` or `//` |
+| `Compile` | `Expected a node test.` | After `::` or `@` |
+| `Compile` | `Expected a variable name after '$'.` | The character after `$` |
+| `Compile` | `Unknown axis 'name'.` | The axis name |
+| `Compile` | `Unexpected 'token'.` | A token after a complete expression |
+| `Compile` | `The string literal is not closed.` | The opening quote |
+| `Compile` | `Unexpected character 'c'.` | The character |
+| `Compile` | `A prefix must be followed by a local name or '*'.` | The character after the colon |
+| `Compile` | `The expression contains U+XXXX, which is not an XML character.` | The character |
+| `Compile` | `MaxDepth exceeded (n).` | What opens the level that is too deep |
+| `Compile` | `The prefix 'p' is not bound in XPathOptions.Namespaces.` | The name |
+| `Compile` | `The function 'f' is not an XPath 1.0 core function.` | The name |
+| `Compile` | `The function 'f' takes N arguments.` (`no arguments`, `1 argument`, `at most 1 argument`, `at least 2 arguments`, `2 or 3 arguments`) | The name |
+| `Evaluate` | `The variable '$name' has no value.` | The `$` |
+| `Evaluate` | `The operands of '\|' must be node-sets.` | The operand |
+| `Evaluate` | `A predicate can only filter a node-set.` | The primary expression |
+| `Evaluate` | `A path can only continue from a node-set.` | The expression before `/` |
+| `Evaluate` | `The argument of f() must be a node-set.` (`count`, `sum`, `local-name`, `namespace-uri`, `name`) | The argument |
+| `Evaluate` | `MaxOperations exceeded (n).` | None |
+| `Select` | `The expression yields a Kind, not a node-set.` | None |
+
+## Changes from the first draft
+
+Building the design changed these points. Each is reflected in the sections above.
+
+1. **`Language` tells "no `xml:lang`" from an empty one.** It returns `bool` with the value as an `out` span. `lang('')` is true under `xml:lang=""` and false where there is none (Recommendation §4.3, "if there is no such attribute, then lang returns false").
+2. **No `ParentOf`.** Nothing called it: the `parent` axis is `Select`. It was left out rather than kept for tests.
+3. **`FromElement` takes the parameter name** for its `ArgumentException`, which is the public method's `context`.
+4. **A text node's `following` and `following-sibling` start after its run.** The first draft started them at `Next(r)`, which for a text row is the next row of the same run.
+5. **Runs of operators are n-ary, and a run of minus signs is one node.** The first draft ported Xemele's binary tree. With a binary tree and a plain recursive evaluator, `MaxDepth` would have had to count every operator, and an expression of 64 `or`s would fail; with runs, depth counts only nesting.
+6. **Node-sets are compared in linear time** (hash set, extremes) rather than pair by pair. The result is the same; the cost of `//a = //b` is no longer the product of the sizes.
+7. **`MaxOperations` also counts the string-values a comparison reads**, not only those functions read: a comparison of two large node-sets is the other place an evaluation does work in proportion to its input.
+8. **`id()` reads nothing.** It evaluates its argument and returns the empty node-set.
+9. **The options are checked** (`xml`, `xmlns`, empty URI, negative limits), and an empty expression is `ArgumentException`. The first draft did not say.
+10. **The Breakdance public-API baseline was not made.** The repository has no Breakdance baseline yet (PR 11 is not started), and the instructions for one refer to a local path that was not available.
 
 ## Open decisions
 

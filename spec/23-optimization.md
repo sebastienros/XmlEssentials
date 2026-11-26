@@ -973,6 +973,22 @@ Counted over every row where the BCL does the same work: **67 comparisons, faste
 - **Open: `WriteSequence` is 18.5 µs against 13.7 µs** (1.36), where the direct loop gave 1.08.
 - The two first-call rows have an error larger than their mean. Three iterations cannot measure a call that happens once.
 
+## XPath against System.Xml.XPath (2026-11-26, net11.0 ShortRun, not profiled)
+
+`XPathBenchmarks` (Performance project) evaluates seven expressions, each compiled once, over a catalog of 1000 items parsed once: `XmlDocument` here, `XPathDocument` (the read-only store of `System.Xml.XPath`) on the other side. `GlobalSetup` evaluates every expression on both sides and throws when the results differ; they did not. BenchmarkDotNet 0.15.8, `Job.ShortRun` in process, Linux Ubuntu 24.04, Intel Xeon 2.30 GHz, 4 cores, .NET 11.0.0. ShortRun has three iterations, so the error column is wide.
+
+| Category | Expression | System.Xml.XPath | XmlEssentials | Ratio | Allocated (BCL / ours) |
+| --- | --- | --- | --- | --- | --- |
+| XPathAncestor | `//qty[. = '7']/ancestor::item/@id` | 31.7 us | 160.3 us | 5.10 | 26160 B / 259897 B |
+| XPathCount | `count(//qty)` | 8.4 us | 84.8 us | 10.17 | 416 B / 171649 B |
+| XPathFilter | `/catalog/item[@category = 'b']/name` | 97.0 us | 108.5 us | 1.12 | 96904 B / 111009 B |
+| XPathLast | `string(/catalog/item[last()]/name)` | 38.5 us | 24.8 us | 0.65 | 89728 B / 16784 B |
+| XPathPredicates | `count(//item[qty > 50][@category = 'a'])` | 225.7 us | 253.0 us | 1.12 | 156112 B / 319257 B |
+| XPathStrings | `count(//name[contains(., '5') and starts-with(., 'item')])` | 42.6 us | 218.3 us | 5.13 | 31520 B / 283561 B |
+| XPathSum | `sum(//item/@price)` | 79.0 us | 146.5 us | 1.88 | 48481 B / 179689 B |
+
+No profile has been taken, so no cause is stated here. The first evaluator was written for correctness; the next step is `dotnet-trace collect --profile cpu-sampling` on `XPathCount` and `XPathStrings`, as the process above says.
+
 ---
 
 [Index](README.md) · [Previous: PR plan](22-pr-plan.md) · [Next: Doc findings resolution](24-doc-findings-resolution.md)

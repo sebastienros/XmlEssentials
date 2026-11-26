@@ -31,6 +31,11 @@ namespace CloudNimble.Text.Xml.XPath
         /// </summary>
         private const int StackCheckDepth = 128;
 
+        /// <summary>
+        /// The context node of the last <c>.</c> that <see cref="TrySelectSimple"/> selected, which its span points at.
+        /// </summary>
+        private long _context;
+
         private int _depth;
         private readonly XmlDocument _document;
         private long[][] _free = new long[4][];
@@ -862,7 +867,7 @@ namespace CloudNimble.Text.Xml.XPath
 
         /// <summary>
         /// Selects the nodes of a relative path of at most one step with no predicate, such as <c>.</c>, <c>@id</c> or
-        /// <c>title</c>, into the scratch buffer.
+        /// <c>title</c>: the context node for <c>.</c>, the scratch buffer for a step.
         /// </summary>
         /// <param name="ast">The expression.</param>
         /// <param name="focus">The context.</param>
@@ -870,7 +875,7 @@ namespace CloudNimble.Text.Xml.XPath
         /// <returns><see langword="true"/> when the expression had this shape.</returns>
         /// <remarks>
         /// One step from one context node selects in document order with no duplicates, so the nodes need no sorting.
-        /// The span is valid until the scratch buffer is used again, so the caller reads it before it evaluates anything.
+        /// The span is valid until this method is called again, so the caller reads it before it evaluates anything.
         /// </remarks>
         private bool TrySelectSimple(XPathAst ast, in XPathFocus focus, out ReadOnlySpan<long> nodes)
         {
@@ -880,22 +885,21 @@ namespace CloudNimble.Text.Xml.XPath
                 return false;
             }
 
+            if (path.Steps.Length == 0)
+            {
+                _context = focus.Node;
+                nodes = new ReadOnlySpan<long>(in _context);
+                return true;
+            }
+
             if (_scratch.Items is null)
             {
                 _scratch = new XPathIdBuffer(8);
             }
 
             _scratch.Clear();
-            if (path.Steps.Length == 0)
-            {
-                _scratch.Add(focus.Node);
-            }
-            else
-            {
-                var step = path.Steps[0];
-                Charge(_navigator.Select(focus.Node, step.Axis, step.Test, ref _scratch));
-            }
-
+            var step = path.Steps[0];
+            Charge(_navigator.Select(focus.Node, step.Axis, step.Test, ref _scratch));
             nodes = _scratch.AsSpan();
             return true;
         }

@@ -280,7 +280,14 @@ namespace CloudNimble.Text.Xml.XPath
             ref var row = ref _document.Row(r);
             if (XmlDocument.IsElementKind(row.Kind))
             {
-                return Text(r + 1 + row.AttributeCount, row.EndIndex);
+                var first = r + 1 + row.AttributeCount;
+                if (row.EndIndex == first + 1 && IsText(_document.Row(first).Kind))
+                {
+                    // An element whose content is one text node, the most common shape, is that node's value.
+                    return ValueMemory(first);
+                }
+
+                return Text(first, row.EndIndex);
             }
 
             if (IsText(row.Kind))

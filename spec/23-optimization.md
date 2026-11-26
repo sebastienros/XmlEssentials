@@ -981,16 +981,17 @@ Counted over every row where the BCL does the same work: **67 comparisons, faste
 
 | Category | Expression | System.Xml.XPath | XmlEssentials | Ratio | Allocated (BCL / ours) |
 | --- | --- | --- | --- | --- | --- |
-| XPathAncestor | `//qty[. = '7']/ancestor::item/@id` | 31.8 us | 20.7 us | 0.65 | 26160 B / 336 B |
-| XPathCount | `count(//qty)` | 8.3 us | 1.9 us | 0.22 | 416 B / 256 B |
-| XPathFilter | `/catalog/item[@category = 'b']/name` | 96.1 us | 59.1 us | 0.62 | 96905 B / 2256 B |
-| XPathLast | `string(/catalog/item[last()]/name)` | 43.4 us | 21.9 us | 0.50 | 89728 B / 184 B |
-| XPathPredicates | `count(//item[qty > 50][@category = 'a'])` | 178.8 us | 66.1 us | 0.37 | 156113 B / 257 B |
-| XPathStrings | `count(//name[contains(., '5') and starts-with(., 'item')])` | 43.1 us | 49.5 us | 1.16 | 31520 B / 256 B |
-| XPathSum | `sum(//item/@price)` | 68.6 us | 34.9 us | 0.51 | 48481 B / 248 B |
+| XPathAncestor | `//qty[. = '7']/ancestor::item/@id` | 29.8 us | 15.5 us | 0.52 | 26160 B / 344 B |
+| XPathCount | `count(//qty)` | 7.9 us | 1.8 us | 0.23 | 416 B / 264 B |
+| XPathFilter | `/catalog/item[@category = 'b']/name` | 85.0 us | 48.5 us | 0.57 | 96905 B / 2264 B |
+| XPathLast | `string(/catalog/item[last()]/name)` | 37.2 us | 22.7 us | 0.61 | 89728 B / 192 B |
+| XPathPredicates | `count(//item[qty > 50][@category = 'a'])` | 147.1 us | 59.8 us | 0.41 | 156113 B / 264 B |
+| XPathStrings | `count(//name[contains(., '5') and starts-with(., 'item')])` | 40.8 us | 28.8 us | 0.71 | 31520 B / 264 B |
+| XPathSum | `sum(//item/@price)` | 71.6 us | 31.3 us | 0.44 | 48481 B / 256 B |
 
-- **Faster on six of seven; `XPathStrings` is level.** Its row is inside the error (6.1 us and 3.7 us standard deviation). Six interleaved pairs of a plain loop of 30,000 evaluations, ours and the BCL's, gave a median of about 41 us for each, ours from 31 to 45, the BCL's from 39 to 43.
-- **Allocation is now what the result needs**: 184 B to 336 B for a number, a string or a few nodes, and 2256 B for `XPathFilter`, whose 250 nodes are copied out of the pool into the result. The first run allocated 16 KB to 319 KB.
+- **Faster on all seven**, from 0.23 to 0.71 of the BCL's time.
+- **`XPathStrings` was level until `.` was answered from the context node.** Before, it measured 49.5 us against 43.1 us in BenchmarkDotNet, inside the error, and about 41 us for each side as the median of six interleaved pairs of a plain loop. The best of 15 rounds of 2000 evaluations then split its cost per candidate `name`: about 6 ns for the predicate (`[true()]`), about 9 ns more to compare `.` with a literal (`[. = 'x']`), but about 25 ns more for `[contains(., 'x')]`. The difference was matching the shape of `.` and selecting it into a buffer each time a function asked for its text. With `.` known when the path is compiled, `[contains(., 'x')]` went from 28.8 us to 19.2 us and the whole expression from 41 us to 26 to 30 us in the same loop. That loop's best of 15 rounds put the BCL at 36 to 37 us.
+- **Allocation is now what the result needs**: 192 B to 344 B for a number, a string or a few nodes, and 2264 B for `XPathFilter`, whose 250 nodes are copied out of the pool into the result. The first run allocated 16 KB to 319 KB. The 8 B more than the run before is the evaluator's field for the context node.
 - `count(//qty)` is the name index: from the second evaluation over a document on, it reads the 1000 `qty` rows and nothing else.
 
 ### What was changed, and where it came from
@@ -1009,6 +1010,8 @@ A profile was taken (`dotnet-trace`, `dotnet-sampled-thread-time`, of a loop ove
 | A name test compares the lengths of the local name and namespace before their bytes | | the scans |
 | `number()` of 15 significant digits or fewer is one exact division | Clinger's fast path, used by .NET's own `double.Parse` | `XPathSum`, `XPathPredicates` |
 | The evaluator checks the stack only once it is more than 128 levels deep | | all |
+| `.` is known when it is compiled, and asked for a boolean or a string it answers from the context node; compared with a constant it is a span over that node, not a buffer | `System.Xml.XPath` compiles `.` to `ContextQuery` | `XPathStrings`, `XPathAncestor` |
+| The string-value of an element whose content is one text node is that node's value, without a pass over the element's rows | `XPathDocument` keeps such an element's text with the element | `XPathStrings`, `XPathAncestor`, `XPathPredicates` |
 
 ### First run (2026-11-26, not profiled)
 

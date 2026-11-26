@@ -163,7 +163,7 @@ namespace CloudNimble.Text.Xml.XPath
         {
             return value.Kind switch
             {
-                XPathResultKind.NodeSet => new XPathResult(XPathResultKind.NodeSet, 0, null, new XPathNodeSet(document, value.NodeArray, value.Count)),
+                XPathResultKind.NodeSet => new XPathResult(XPathResultKind.NodeSet, 0, null, new XPathNodeSet(document, value.ToArray(), value.Count)),
                 XPathResultKind.Boolean => new XPathResult(XPathResultKind.Boolean, value.Boolean ? 1 : 0, null, null),
                 XPathResultKind.Number => new XPathResult(XPathResultKind.Number, value.Number, null, null),
                 _ => new XPathResult(XPathResultKind.String, 0, Encoding.UTF8.GetString(value.String.Span), null),

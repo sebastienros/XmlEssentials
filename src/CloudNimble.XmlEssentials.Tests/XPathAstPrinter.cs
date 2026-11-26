@@ -84,10 +84,15 @@ namespace CloudNimble.XmlEssentials.Tests
             var steps = string.Join("/", path.Steps.Select(PrintStep));
             if (path.Input is not null)
             {
-                return Print(path.Input) + "/" + steps;
+                return path.Steps.Length == 0 ? Print(path.Input) : Print(path.Input) + "/" + steps;
             }
 
-            return path.IsAbsolute ? "/" + steps : steps;
+            if (path.IsAbsolute)
+            {
+                return "/" + steps;
+            }
+
+            return path.Steps.Length == 0 ? "." : steps;
         }
 
         private static string PrintStep(XPathStep step)

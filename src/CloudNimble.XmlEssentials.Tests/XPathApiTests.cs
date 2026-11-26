@@ -346,6 +346,21 @@ namespace CloudNimble.XmlEssentials.Tests
         }
 
         [TestMethod]
+        public void MaxOperations_OnceTheNameIndexIsBuilt_CountsOnlyTheElementsOfThatName()
+        {
+            using var document = XmlDocument.Parse("<a><b>1</b><c/><c/><c/><b>2</b></a>");
+            // The first scan for a name looks at every row below the document node: a, b, its text, three c, b, its text.
+            var expression = XPathExpression.Compile("count(//b)", new XPathOptions { MaxOperations = 7 });
+            var first = () => expression.Evaluate(document);
+            first.Should().Throw<XPathException>().Which.Message.Should().Be("MaxOperations exceeded (7).");
+            // The second builds the index and looks at the two b rows only.
+            expression.Evaluate(document).GetNumber().Should().Be(2);
+            XPathExpression.Compile("count(//b)", new XPathOptions { MaxOperations = 2 }).Evaluate(document).GetNumber().Should().Be(2);
+            var third = () => XPathExpression.Compile("count(//b)", new XPathOptions { MaxOperations = 1 }).Evaluate(document);
+            third.Should().Throw<XPathException>().Which.Message.Should().Be("MaxOperations exceeded (1).");
+        }
+
+        [TestMethod]
         public void MaxOperations_BoundsAnExpressionThatCostsAPowerOfTheDocument()
         {
             var xml = "<a>" + string.Concat(Enumerable.Repeat("<b/>", 200)) + "</a>";

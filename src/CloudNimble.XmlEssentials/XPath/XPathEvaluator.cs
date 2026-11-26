@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -25,10 +26,19 @@ namespace CloudNimble.Text.Xml.XPath
 
         #region Fields
 
+        /// <summary>
+        /// The depth of recursion from which every evaluation checks that the stack has room.
+        /// </summary>
+        private const int StackCheckDepth = 128;
+
+        private int _depth;
         private readonly XmlDocument _document;
+        private long[][] _free = new long[4][];
+        private int _freeCount;
         private readonly long _maxOperations;
         private readonly XPathNavigator _navigator;
         private long _operations;
+        private XPathIdBuffer _scratch;
         private readonly XPathVariables? _variables;
 
         #endregion
@@ -67,10 +77,10 @@ namespace CloudNimble.Text.Xml.XPath
         /// </summary>
         internal XPathValue Arithmetic(XPathArithmetic node, in XPathFocus focus)
         {
-            var value = ToNumber(Evaluate(node.Operands[0], focus));
+            var value = Number(node.Operands[0], focus);
             for (var i = 0; i < node.Operators.Length; i++)
             {
-                var right = ToNumber(Evaluate(node.Operands[i + 1], focus));
+                var right = Number(node.Operands[i + 1], focus);
                 value = node.Operators[i] switch
                 {
                     XPathArithmeticOperator.Add => value + right,
@@ -83,6 +93,17 @@ namespace CloudNimble.Text.Xml.XPath
             }
 
             return XPathValue.FromNumber(value);
+        }
+
+        /// <summary>
+        /// Evaluates an operand where a boolean is wanted.
+        /// </summary>
+        internal bool Boolean(XPathAst operand, in XPathFocus focus)
+        {
+            Enter();
+            var result = operand.EvaluateBoolean(this, focus);
+            _depth--;
+            return result;
         }
 
         /// <summary>
@@ -102,15 +123,25 @@ namespace CloudNimble.Text.Xml.XPath
         /// <summary>
         /// Evaluates a run of comparisons, from left to right.
         /// </summary>
-        internal XPathValue Comparison(XPathComparison node, in XPathFocus focus)
+        internal bool ComparisonBoolean(XPathComparison node, in XPathFocus focus)
         {
-            var value = Evaluate(node.Operands[0], focus);
-            for (var i = 0; i < node.Operators.Length; i++)
+            if (node.Operators.Length == 1 && TryCompareConstant(node.Operators[0], node.Operands[0], node.Operands[1], focus, out var direct))
             {
-                value = XPathValue.FromBoolean(Compare(node.Operators[i], value, Evaluate(node.Operands[i + 1], focus)));
+                return direct;
             }
 
-            return value;
+            var value = Evaluate(node.Operands[0], focus);
+            var result = false;
+            for (var i = 0; i < node.Operators.Length; i++)
+            {
+                var right = Evaluate(node.Operands[i + 1], focus);
+                result = Compare(node.Operators[i], value, right);
+                Release(value);
+                Release(right);
+                value = XPathValue.FromBoolean(result);
+            }
+
+            return result;
         }
 
         /// <summary>
@@ -121,8 +152,10 @@ namespace CloudNimble.Text.Xml.XPath
         /// <returns>The value.</returns>
         internal XPathValue Evaluate(XPathAst ast, in XPathFocus focus)
         {
-            RuntimeHelpers.EnsureSufficientExecutionStack();
-            return ast.Evaluate(this, focus);
+            Enter();
+            var value = ast.Evaluate(this, focus);
+            _depth--;
+            return value;
         }
 
         /// <summary>
@@ -131,30 +164,39 @@ namespace CloudNimble.Text.Xml.XPath
         internal XPathValue Filter(XPathFilter node, in XPathFocus focus)
         {
             var input = NodeSet(node.Primary, focus, "A predicate can only filter a node-set.");
-            var nodes = new XPathIdBuffer(input.Count);
-            foreach (var id in input.Nodes)
+            XPathIdBuffer nodes;
+            if (input.IsOwned)
             {
-                nodes.Add(id);
+                // Nothing else holds the array, so the predicates filter it in place.
+                nodes = new XPathIdBuffer(input.ToArray(), input.Count);
+            }
+            else
+            {
+                nodes = NewBuffer(input.Count);
+                foreach (var id in input.Nodes)
+                {
+                    nodes.Add(id);
+                }
             }
 
             ApplyPredicates(ref nodes, node.Predicates, reverse: false);
-            return XPathValue.FromNodes(nodes.Items, nodes.Count);
+            return XPathValue.FromNodes(nodes.Items, nodes.Count, owned: true);
         }
 
         /// <summary>
         /// Evaluates a run of <c>or</c> or of <c>and</c>, which stops at the first operand that decides it.
         /// </summary>
-        internal XPathValue Logical(XPathLogical node, in XPathFocus focus)
+        internal bool LogicalBoolean(XPathLogical node, in XPathFocus focus)
         {
             foreach (var operand in node.Operands)
             {
-                if (ToBoolean(Evaluate(operand, focus)) == node.IsOr)
+                if (Boolean(operand, focus) == node.IsOr)
                 {
-                    return XPathValue.FromBoolean(node.IsOr);
+                    return node.IsOr;
                 }
             }
 
-            return XPathValue.FromBoolean(!node.IsOr);
+            return !node.IsOr;
         }
 
         /// <summary>
@@ -162,8 +204,29 @@ namespace CloudNimble.Text.Xml.XPath
         /// </summary>
         internal XPathValue Negation(XPathNegation node, in XPathFocus focus)
         {
-            var value = ToNumber(Evaluate(node.Operand, focus));
+            var value = Number(node.Operand, focus);
             return XPathValue.FromNumber(node.Negate ? -value : value);
+        }
+
+        /// <summary>
+        /// Returns a buffer for node ids, from the arrays this evaluation has finished with when there is one.
+        /// </summary>
+        /// <param name="capacity">The number of ids it is expected to hold.</param>
+        /// <returns>The buffer, which is given back with <see cref="Recycle"/> or kept by a value.</returns>
+        internal XPathIdBuffer NewBuffer(int capacity)
+        {
+            return _freeCount > 0 ? new XPathIdBuffer(_free[--_freeCount], 0) : new XPathIdBuffer(capacity);
+        }
+
+        /// <summary>
+        /// Evaluates an operand and returns <c>number()</c> of it, giving its node-set back to the pool.
+        /// </summary>
+        internal double Number(XPathAst operand, in XPathFocus focus)
+        {
+            var value = Evaluate(operand, focus);
+            var result = ToNumber(value);
+            Release(value);
+            return result;
         }
 
         /// <summary>
@@ -190,28 +253,101 @@ namespace CloudNimble.Text.Xml.XPath
         /// </summary>
         internal XPathValue Path(XPathPath node, in XPathFocus focus)
         {
-            long[] nodes;
-            int count;
-            if (node.Input is { } input)
+            var input = node.Input is { } source
+                ? NodeSet(source, focus, "A path can only continue from a node-set.")
+                : XPathValue.FromNode(node.IsAbsolute ? XPathNodeId.Document : focus.Node);
+            if (node.Steps.Length == 0)
             {
-                var start = NodeSet(input, focus, "A path can only continue from a node-set.");
-                nodes = start.NodeArray;
-                count = start.Count;
-            }
-            else
-            {
-                nodes = [node.IsAbsolute ? XPathNodeId.Document : focus.Node];
-                count = 1;
+                return input;
             }
 
-            foreach (var step in node.Steps)
+            var output = Step(node.Steps[0], input.Nodes);
+            Release(input);
+            for (var i = 1; i < node.Steps.Length; i++)
             {
-                var output = Step(step, nodes.AsSpan(0, count));
-                nodes = output.Items;
-                count = output.Count;
+                var next = Step(node.Steps[i], output.AsSpan());
+                Recycle(output.Items);
+                output = next;
             }
 
-            return XPathValue.FromNodes(nodes, count);
+            return XPathValue.FromNodes(output.Items, output.Count, owned: true);
+        }
+
+        /// <summary>
+        /// Keeps an array this evaluation has finished with, for the next buffer it needs.
+        /// </summary>
+        /// <param name="array">An array rented from <see cref="ArrayPool{T}.Shared"/> that nothing else holds.</param>
+        /// <remarks>
+        /// Renting and returning through the shared pool costs more than a node test, and a predicate may need a buffer
+        /// for each node it filters. The arrays are kept here instead and go back to the pool once, in
+        /// <see cref="ReturnBuffers"/>.
+        /// </remarks>
+        internal void Recycle(long[] array)
+        {
+            if (_freeCount == _free.Length)
+            {
+                Array.Resize(ref _free, _free.Length * 2);
+            }
+
+            _free[_freeCount++] = array;
+        }
+
+        /// <summary>
+        /// Gives the array of an owned node-set back, once the value has been consumed.
+        /// </summary>
+        /// <param name="value">The value. One that is not an owned node-set is left alone.</param>
+        internal void Release(in XPathValue value)
+        {
+            if (value.IsOwned)
+            {
+                Recycle(value.ToArray());
+            }
+        }
+
+        /// <summary>
+        /// Gives every array this evaluation kept back to <see cref="ArrayPool{T}.Shared"/>, at its end.
+        /// </summary>
+        internal void ReturnBuffers()
+        {
+            for (var i = 0; i < _freeCount; i++)
+            {
+                ArrayPool<long>.Shared.Return(_free[i]);
+            }
+
+            _freeCount = 0;
+            if (_scratch.Items is { } scratch)
+            {
+                ArrayPool<long>.Shared.Return(scratch);
+                _scratch = default;
+            }
+        }
+
+        /// <summary>
+        /// Evaluates a path where a boolean is wanted: whether it selects a node. A one-step path is answered from the
+        /// scratch buffer.
+        /// </summary>
+        internal bool PathBoolean(XPathPath node, in XPathFocus focus)
+        {
+            if (TrySelectSimple(node, focus, out var nodes))
+            {
+                return nodes.Length > 0;
+            }
+
+            return ToBooleanAndRelease(Path(node, focus));
+        }
+
+        /// <summary>
+        /// Evaluates a path where a string is wanted: the string-value of its first node. <c>.</c> is the context node,
+        /// and a one-step path is answered from the scratch buffer.
+        /// </summary>
+        internal ReadOnlyMemory<byte> PathText(XPathPath node, in XPathFocus focus)
+        {
+            if (TrySelectSimple(node, focus, out var nodes))
+            {
+                return nodes.Length == 0 ? ReadOnlyMemory<byte>.Empty : StringValue(nodes[0]);
+            }
+
+            return ToTextAndRelease(Path(node, focus));
         }
 
         /// <summary>
@@ -226,6 +362,17 @@ namespace CloudNimble.Text.Xml.XPath
         }
 
         /// <summary>
+        /// Evaluates an operand where a string is wanted.
+        /// </summary>
+        internal ReadOnlyMemory<byte> Text(XPathAst operand, in XPathFocus focus)
+        {
+            Enter();
+            var result = operand.EvaluateText(this, focus);
+            _depth--;
+            return result;
+        }
+
+        /// <summary>
         /// Returns <c>boolean()</c> of a value.
         /// </summary>
         internal static bool ToBoolean(in XPathValue value)
@@ -237,6 +384,16 @@ namespace CloudNimble.Text.Xml.XPath
                 XPathResultKind.Number => !(value.Number == 0 || double.IsNaN(value.Number)),
                 _ => value.String.Length > 0,
             };
+        }
+
+        /// <summary>
+        /// Returns <c>boolean()</c> of a value, and gives its node-set back.
+        /// </summary>
+        internal bool ToBooleanAndRelease(in XPathValue value)
+        {
+            var result = ToBoolean(value);
+            Release(value);
+            return result;
         }
 
         /// <summary>
@@ -268,6 +425,19 @@ namespace CloudNimble.Text.Xml.XPath
         }
 
         /// <summary>
+        /// Returns <c>string()</c> of a value, and gives its node-set back.
+        /// </summary>
+        /// <remarks>
+        /// The string-value of a node is a slice of the document or a new array, never the array of the node-set.
+        /// </remarks>
+        internal ReadOnlyMemory<byte> ToTextAndRelease(in XPathValue value)
+        {
+            var result = ToText(value);
+            Release(value);
+            return result;
+        }
+
+        /// <summary>
         /// Evaluates a run of <c>|</c>.
         /// </summary>
         internal XPathValue Union(XPathUnion node, in XPathFocus focus)
@@ -275,7 +445,11 @@ namespace CloudNimble.Text.Xml.XPath
             var value = NodeSet(node.Operands[0], focus, "The operands of '|' must be node-sets.");
             for (var i = 1; i < node.Operands.Length; i++)
             {
-                value = Merge(value, NodeSet(node.Operands[i], focus, "The operands of '|' must be node-sets."));
+                var next = NodeSet(node.Operands[i], focus, "The operands of '|' must be node-sets.");
+                var merged = Merge(value, next);
+                Release(value);
+                Release(next);
+                value = merged;
             }
 
             return value;
@@ -338,8 +512,21 @@ namespace CloudNimble.Text.Xml.XPath
                 for (var i = 0; i < size; i++)
                 {
                     var position = reverse ? size - i : i + 1;
-                    var value = Evaluate(predicate, new XPathFocus(items[i], position, size));
-                    if (value.Kind is XPathResultKind.Number ? value.Number == position : ToBoolean(value))
+                    var candidate = new XPathFocus(items[i], position, size);
+                    bool pass;
+                    if (!predicate.IsPositional)
+                    {
+                        // Its value is never a number, so it passes when its boolean() is true.
+                        pass = Boolean(predicate, candidate);
+                    }
+                    else
+                    {
+                        var value = Evaluate(predicate, candidate);
+                        pass = value.Kind is XPathResultKind.Number ? value.Number == position : ToBoolean(value);
+                        Release(value);
+                    }
+
+                    if (pass)
                     {
                         items[kept++] = items[i];
                     }
@@ -356,12 +543,12 @@ namespace CloudNimble.Text.Xml.XPath
         {
             if (left.Kind is XPathResultKind.NodeSet)
             {
-                return right.Kind is XPathResultKind.NodeSet ? CompareSets(op, left, right) : CompareSet(op, left, right);
+                return right.Kind is XPathResultKind.NodeSet ? CompareSets(op, left, right) : CompareSet(op, left.Nodes, right);
             }
 
             if (right.Kind is XPathResultKind.NodeSet)
             {
-                return CompareSet(Flip(op), right, left);
+                return CompareSet(Flip(op), right.Nodes, left);
             }
 
             if (op is not (XPathComparisonOperator.Equal or XPathComparisonOperator.NotEqual))
@@ -401,17 +588,17 @@ namespace CloudNimble.Text.Xml.XPath
         /// <summary>
         /// Compares a node-set, on the left, with a value that is not one: true when some node compares true.
         /// </summary>
-        private bool CompareSet(XPathComparisonOperator op, in XPathValue set, in XPathValue other)
+        private bool CompareSet(XPathComparisonOperator op, ReadOnlySpan<long> set, in XPathValue other)
         {
             var equality = op is XPathComparisonOperator.Equal or XPathComparisonOperator.NotEqual;
             switch (other.Kind)
             {
                 case XPathResultKind.Boolean:
                     // The node-set is converted to a boolean as a whole.
-                    var any = set.Count > 0;
+                    var any = set.Length > 0;
                     return equality ? Same(op, any == other.Boolean) : CompareNumbers(op, any ? 1 : 0, other.Boolean ? 1 : 0);
                 case XPathResultKind.Number:
-                    foreach (var id in set.Nodes)
+                    foreach (var id in set)
                     {
                         if (CompareNumbers(op, XPathConversions.ParseNumber(StringValue(id).Span), other.Number))
                         {
@@ -422,7 +609,7 @@ namespace CloudNimble.Text.Xml.XPath
                     return false;
                 default:
                     var number = equality ? 0 : XPathConversions.ParseNumber(other.String.Span);
-                    foreach (var id in set.Nodes)
+                    foreach (var id in set)
                     {
                         var text = StringValue(id).Span;
                         if (equality ? Same(op, text.SequenceEqual(other.String.Span)) : CompareNumbers(op, XPathConversions.ParseNumber(text), number))
@@ -501,6 +688,21 @@ namespace CloudNimble.Text.Xml.XPath
         }
 
         /// <summary>
+        /// Counts one more level of recursion, and checks that the stack has room once it is deep.
+        /// </summary>
+        /// <remarks>
+        /// The parser bounds the nesting, so the stack is checked only when the recursion has gone deep: asking the
+        /// runtime on every node costs more than most nodes do.
+        /// </remarks>
+        private void Enter()
+        {
+            if (++_depth > StackCheckDepth)
+            {
+                RuntimeHelpers.EnsureSufficientExecutionStack();
+            }
+        }
+
+        /// <summary>
         /// Returns the operator that gives the same result with its operands swapped.
         /// </summary>
         private static XPathComparisonOperator Flip(XPathComparisonOperator op)
@@ -522,7 +724,7 @@ namespace CloudNimble.Text.Xml.XPath
         {
             var a = left.Nodes;
             var b = right.Nodes;
-            var merged = new long[a.Length + b.Length];
+            var merged = ArrayPool<long>.Shared.Rent(Math.Max(a.Length + b.Length, 1));
             int i = 0, j = 0, count = 0;
             while (i < a.Length && j < b.Length)
             {
@@ -537,7 +739,7 @@ namespace CloudNimble.Text.Xml.XPath
             count += a.Length - i;
             b[j..].CopyTo(merged.AsSpan(count));
             count += b.Length - j;
-            return XPathValue.FromNodes(merged, count);
+            return XPathValue.FromNodes(merged, count, owned: true);
         }
 
         /// <summary>
@@ -583,14 +785,15 @@ namespace CloudNimble.Text.Xml.XPath
         /// </remarks>
         private XPathIdBuffer Step(XPathStep step, ReadOnlySpan<long> contexts)
         {
-            var output = new XPathIdBuffer(contexts.Length);
-            var scratch = new XPathIdBuffer(step.Predicates.Length == 0 ? 0 : 8);
+            var output = NewBuffer(contexts.Length);
+            var filtered = step.Predicates.Length > 0;
+            var scratch = filtered ? NewBuffer(8) : default;
             var ascending = true;
             var last = -1L;
             foreach (var context in contexts)
             {
                 var start = output.Count;
-                if (step.Predicates.Length == 0)
+                if (!filtered)
                 {
                     Charge(_navigator.Select(context, step.Axis, step.Test, ref output));
                 }
@@ -612,12 +815,89 @@ namespace CloudNimble.Text.Xml.XPath
                 }
             }
 
+            if (filtered)
+            {
+                Recycle(scratch.Items);
+            }
+
             if (!ascending)
             {
                 output.SortAndDeduplicate();
             }
 
             return output;
+        }
+
+        /// <summary>
+        /// Compares a one-step path with a literal or a number without making a node-set: the nodes are selected into
+        /// the scratch buffer and compared there, and the comparison stops at the first that passes.
+        /// </summary>
+        /// <param name="op">The operator.</param>
+        /// <param name="left">The left operand.</param>
+        /// <param name="right">The right operand.</param>
+        /// <param name="focus">The context.</param>
+        /// <param name="result">When this method returns <see langword="true"/>, the result of the comparison.</param>
+        /// <returns><see langword="true"/> when the comparison had this shape, either way round.</returns>
+        /// <remarks>
+        /// This is the shape of most predicates, such as <c>[@id = 'x']</c> and <c>[. &gt; 5]</c>. The constant is
+        /// evaluated first, and nothing else is evaluated while the scratch buffer holds the nodes.
+        /// </remarks>
+        private bool TryCompareConstant(XPathComparisonOperator op, XPathAst left, XPathAst right, in XPathFocus focus, out bool result)
+        {
+            if (right is XPathLiteral or XPathNumber && TrySelectSimple(left, focus, out var nodes))
+            {
+                result = CompareSet(op, nodes, right.Evaluate(this, focus));
+                return true;
+            }
+
+            if (left is XPathLiteral or XPathNumber && TrySelectSimple(right, focus, out nodes))
+            {
+                result = CompareSet(Flip(op), nodes, left.Evaluate(this, focus));
+                return true;
+            }
+
+            result = false;
+            return false;
+        }
+
+        /// <summary>
+        /// Selects the nodes of a relative path of at most one step with no predicate, such as <c>.</c>, <c>@id</c> or
+        /// <c>title</c>, into the scratch buffer.
+        /// </summary>
+        /// <param name="ast">The expression.</param>
+        /// <param name="focus">The context.</param>
+        /// <param name="nodes">When this method returns <see langword="true"/>, the nodes, ascending and without duplicates.</param>
+        /// <returns><see langword="true"/> when the expression had this shape.</returns>
+        /// <remarks>
+        /// One step from one context node selects in document order with no duplicates, so the nodes need no sorting.
+        /// The span is valid until the scratch buffer is used again, so the caller reads it before it evaluates anything.
+        /// </remarks>
+        private bool TrySelectSimple(XPathAst ast, in XPathFocus focus, out ReadOnlySpan<long> nodes)
+        {
+            if (ast is not XPathPath { Input: null, IsAbsolute: false, Steps.Length: <= 1 } path || (path.Steps.Length == 1 && path.Steps[0].Predicates.Length > 0))
+            {
+                nodes = default;
+                return false;
+            }
+
+            if (_scratch.Items is null)
+            {
+                _scratch = new XPathIdBuffer(8);
+            }
+
+            _scratch.Clear();
+            if (path.Steps.Length == 0)
+            {
+                _scratch.Add(focus.Node);
+            }
+            else
+            {
+                var step = path.Steps[0];
+                Charge(_navigator.Select(focus.Node, step.Axis, step.Test, ref _scratch));
+            }
+
+            nodes = _scratch.AsSpan();
+            return true;
         }
 
         #endregion

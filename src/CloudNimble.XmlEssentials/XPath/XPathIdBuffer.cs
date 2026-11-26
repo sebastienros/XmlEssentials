@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 
 namespace CloudNimble.Text.Xml.XPath
 {
@@ -7,7 +8,10 @@ namespace CloudNimble.Text.Xml.XPath
     /// A growable list of node ids, which the navigator appends to and the evaluator turns into node-sets.
     /// </summary>
     /// <remarks>
-    /// A mutable struct: it is passed by reference, never copied.
+    /// A mutable struct: it is passed by reference, never copied. Its array is rented from
+    /// <see cref="ArrayPool{T}.Shared"/>, and so is every larger one it grows into; the one it outgrows goes back.
+    /// Whoever ends up holding the array either keeps it (a result) or gives it back with
+    /// <see cref="XPathEvaluator.Recycle"/>.
     /// </remarks>
     internal struct XPathIdBuffer
     {
@@ -41,8 +45,19 @@ namespace CloudNimble.Text.Xml.XPath
         /// <param name="capacity">The initial capacity, which may be 0.</param>
         internal XPathIdBuffer(int capacity)
         {
-            _items = new long[capacity];
+            _items = ArrayPool<long>.Shared.Rent(Math.Max(capacity, 1));
             _count = 0;
+        }
+
+        /// <summary>
+        /// Creates a buffer over an owned array that already holds ids.
+        /// </summary>
+        /// <param name="items">An array rented from <see cref="ArrayPool{T}.Shared"/> that nothing else holds.</param>
+        /// <param name="count">The number of ids in it.</param>
+        internal XPathIdBuffer(long[] items, int count)
+        {
+            _items = items;
+            _count = count;
         }
 
         #endregion
@@ -57,7 +72,10 @@ namespace CloudNimble.Text.Xml.XPath
         {
             if (_count == _items.Length)
             {
-                Array.Resize(ref _items, Math.Max(_items.Length * 2, 4));
+                var grown = ArrayPool<long>.Shared.Rent(_items.Length * 2);
+                _items.AsSpan(0, _count).CopyTo(grown);
+                ArrayPool<long>.Shared.Return(_items);
+                _items = grown;
             }
 
             _items[_count++] = id;

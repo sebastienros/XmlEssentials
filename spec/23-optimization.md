@@ -973,9 +973,46 @@ Counted over every row where the BCL does the same work: **67 comparisons, faste
 - **Open: `WriteSequence` is 18.5 µs against 13.7 µs** (1.36), where the direct loop gave 1.08.
 - The two first-call rows have an error larger than their mean. Three iterations cannot measure a call that happens once.
 
-## XPath against System.Xml.XPath (2026-11-26, net11.0 ShortRun, not profiled)
+## XPath against System.Xml.XPath
 
-`XPathBenchmarks` (Performance project) evaluates seven expressions, each compiled once, over a catalog of 1000 items parsed once: `XmlDocument` here, `XPathDocument` (the read-only store of `System.Xml.XPath`) on the other side. `GlobalSetup` evaluates every expression on both sides and throws when the results differ; they did not. BenchmarkDotNet 0.15.8, `Job.ShortRun` in process, Linux Ubuntu 24.04, Intel Xeon 2.30 GHz, 4 cores, .NET 11.0.0. ShortRun has three iterations, so the error column is wide.
+`XPathBenchmarks` (Performance project) evaluates seven expressions, each compiled once, over a catalog of 1000 items parsed once: `XmlDocument` here, `XPathDocument` (the read-only store of `System.Xml.XPath`) on the other side. `GlobalSetup` evaluates every expression on both sides and throws when the results differ; they did not. BenchmarkDotNet 0.15.8, `Job.ShortRun` in process, Linux Ubuntu 24.04, Intel Xeon 2.30 GHz, 4 cores, .NET 11.0.0. ShortRun has three iterations, so the error column is wide; on this machine two runs of the same row differ by up to a third.
+
+### After the optimization pass (2026-11-26)
+
+| Category | Expression | System.Xml.XPath | XmlEssentials | Ratio | Allocated (BCL / ours) |
+| --- | --- | --- | --- | --- | --- |
+| XPathAncestor | `//qty[. = '7']/ancestor::item/@id` | 31.8 us | 20.7 us | 0.65 | 26160 B / 336 B |
+| XPathCount | `count(//qty)` | 8.3 us | 1.9 us | 0.22 | 416 B / 256 B |
+| XPathFilter | `/catalog/item[@category = 'b']/name` | 96.1 us | 59.1 us | 0.62 | 96905 B / 2256 B |
+| XPathLast | `string(/catalog/item[last()]/name)` | 43.4 us | 21.9 us | 0.50 | 89728 B / 184 B |
+| XPathPredicates | `count(//item[qty > 50][@category = 'a'])` | 178.8 us | 66.1 us | 0.37 | 156113 B / 257 B |
+| XPathStrings | `count(//name[contains(., '5') and starts-with(., 'item')])` | 43.1 us | 49.5 us | 1.16 | 31520 B / 256 B |
+| XPathSum | `sum(//item/@price)` | 68.6 us | 34.9 us | 0.51 | 48481 B / 248 B |
+
+- **Faster on six of seven; `XPathStrings` is level.** Its row is inside the error (6.1 us and 3.7 us standard deviation). Six interleaved pairs of a plain loop of 30,000 evaluations, ours and the BCL's, gave a median of about 41 us for each, ours from 31 to 45, the BCL's from 39 to 43.
+- **Allocation is now what the result needs**: 184 B to 336 B for a number, a string or a few nodes, and 2256 B for `XPathFilter`, whose 250 nodes are copied out of the pool into the result. The first run allocated 16 KB to 319 KB.
+- `count(//qty)` is the name index: from the second evaluation over a document on, it reads the 1000 `qty` rows and nothing else.
+
+### What was changed, and where it came from
+
+A profile was taken (`dotnet-trace`, `dotnet-sampled-thread-time`, of a loop over the seven expressions), but on this machine its attribution to individual frames (`Memmove`, `ArrayPool.Return`) moved from run to run, so no cause is stated from it. Each change was judged on a before-and-after timing of that loop, then of the benchmarks. The tests pass with all of them; the only expected values that changed are the printed trees of the paths that are now rewritten.
+
+| Change | Source of the idea | Rows it is for |
+| --- | --- | --- |
+| `//x[p]` is `descendant::x[p]` when `p` cannot be positional; `//@a` is `descendant-or-self::*/@a`; `.` steps are dropped ([rewrites](27-xpath.md#rewrites)) | `System.Xml.XPath`, `QueryBuilder` (the same three rewrites, with the same rule for positional predicates) | every `//` row |
+| Node-set arrays rented from `ArrayPool<long>.Shared`, owned by one consumer, recycled through a free list for one evaluation and returned once | `System.Text.Json` (`JsonDocument` rents its row store); the free list keeps rent and return off the per-step path | all |
+| A single node held in the value itself, not in an array | | `XPathLast`, `XPathAncestor` |
+| Typed evaluation: predicates, `and`, `or`, `not()`, `boolean()` ask for `bool`; string functions ask for UTF-8 | | `XPathStrings`, `XPathPredicates`, `XPathFilter` |
+| A one-step path from the context with no predicate is selected into one kept buffer when it is compared with a constant or used as a boolean or a string | | `XPathPredicates`, `XPathAncestor`, `XPathFilter` |
+| A node-set compared with a literal or a number stops at the first string-value that decides | Recommendation §3.4 ("if there is a node") | `XPathAncestor`, `XPathPredicates` |
+| The name index, built the second time a document is scanned for a name ([name index](27-xpath.md#the-name-index)) | Jint's selector matcher fills its sibling-position cache on the second question about a parent, not the first | `XPathCount`, `XPathStrings`, `XPathPredicates`, `XPathSum` |
+| A name test compares the lengths of the local name and namespace before their bytes | | the scans |
+| `number()` of 15 significant digits or fewer is one exact division | Clinger's fast path, used by .NET's own `double.Parse` | `XPathSum`, `XPathPredicates` |
+| The evaluator checks the stack only once it is more than 128 levels deep | | all |
+
+### First run (2026-11-26, not profiled)
+
+The evaluator as first written, for correctness.
 
 | Category | Expression | System.Xml.XPath | XmlEssentials | Ratio | Allocated (BCL / ours) |
 | --- | --- | --- | --- | --- | --- |
@@ -986,8 +1023,6 @@ Counted over every row where the BCL does the same work: **67 comparisons, faste
 | XPathPredicates | `count(//item[qty > 50][@category = 'a'])` | 225.7 us | 253.0 us | 1.12 | 156112 B / 319257 B |
 | XPathStrings | `count(//name[contains(., '5') and starts-with(., 'item')])` | 42.6 us | 218.3 us | 5.13 | 31520 B / 283561 B |
 | XPathSum | `sum(//item/@price)` | 79.0 us | 146.5 us | 1.88 | 48481 B / 179689 B |
-
-No profile has been taken, so no cause is stated here. The first evaluator was written for correctness; the next step is `dotnet-trace collect --profile cpu-sampling` on `XPathCount` and `XPathStrings`, as the process above says.
 
 ---
 

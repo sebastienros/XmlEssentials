@@ -21,6 +21,8 @@ namespace CloudNimble.XmlEssentials.Tests
 
         private const string Indented = "<a>\n  <b>x<!--c-->y</b>\n  <c/>\n</a>";
 
+        private const string Indexed = "<r xmlns:p=\"urn:p\"><e n=\"1\"><f/></e><g/><e n=\"2\"><e n=\"3\"/></e><p:e/></r>";
+
         private const string Feed = "<feed><entry id=\"1\"><title>one</title></entry><entry id=\"2\"><title>two</title></entry></feed>";
 
         #endregion
@@ -100,6 +102,72 @@ namespace CloudNimble.XmlEssentials.Tests
         }
 
         [TestMethod]
+        [DataRow("count(//e)", "3")]
+        [DataRow("count(/r/descendant::e)", "3")]
+        [DataRow("//e[1]/following::e/@n", "@n=2 @n=3")]
+        [DataRow("//f/preceding::e/@n", "{}")]
+        [DataRow("//g/preceding::e/@n", "@n=1")]
+        [DataRow("//e[@n = 3]/preceding::e/@n", "@n=1")]
+        [DataRow("count(//g/preceding::f)", "1")]
+        [DataRow("//e[@n = 2]/descendant-or-self::e/@n", "@n=2 @n=3")]
+        [DataRow("//e[@n = 2]/descendant::e/@n", "@n=3")]
+        [DataRow("count(//p:e)", "1")]
+        [DataRow("count(//missing)", "0")]
+        [DataRow("count(//f/following::e)", "2")]
+        public void NameIndex_GivesWhatTheScanGives_FromTheSecondScanOn(string expression, string expected)
+        {
+            using var document = XmlDocument.Parse(Indexed);
+            var options = new XPathOptions { Namespaces = new System.Collections.Generic.Dictionary<string, string> { ["p"] = "urn:p" } };
+            var first = XPathRendering.Evaluate(document, expression, options: options);
+            XPathRendering.Evaluate(document, expression, options: options).Should().Be(first);
+            HasNameIndex(document).Should().BeTrue();
+            XPathRendering.Evaluate(document, expression, options: options).Should().Be(expected);
+            first.Should().Be(expected);
+        }
+
+        [TestMethod]
+        public void NameIndex_OneScan_IsNotBuilt_AndDisposeLetsItGo()
+        {
+            var document = XmlDocument.Parse(Indexed);
+            XPathRendering.Evaluate(document, "count(//e)").Should().Be("3");
+            HasNameIndex(document).Should().BeFalse();
+            XPathRendering.Evaluate(document, "count(//*)").Should().Be("7");
+            XPathRendering.Evaluate(document, "count(r)").Should().Be("1");
+            HasNameIndex(document).Should().BeFalse();
+            XPathRendering.Evaluate(document, "count(//f)").Should().Be("1");
+            HasNameIndex(document).Should().BeTrue();
+            document.Dispose();
+            HasNameIndex(document).Should().BeFalse();
+        }
+
+        [TestMethod]
+        public void NameIndex_ThreadsThatRace_AllGetTheSameNodes()
+        {
+            using var document = XmlDocument.Parse(Indexed);
+            var expression = XPathExpression.Compile("sum(//e/@n)");
+            var results = new double[8];
+            using var start = new Barrier(results.Length);
+            Parallel.For(0, results.Length, new ParallelOptions { MaxDegreeOfParallelism = results.Length }, i =>
+            {
+                start.SignalAndWait();
+                results[i] = expression.Evaluate(document).GetNumber();
+                results[i] += expression.Evaluate(document).GetNumber();
+            });
+            results.Should().AllBeEquivalentTo(12d);
+            HasNameIndex(document).Should().BeTrue();
+        }
+
+        [TestMethod]
+        public void Evaluate_NestingDeeperThanTheStackCheck_IsEvaluated()
+        {
+            var expression = string.Concat(Enumerable.Repeat("not(", 300)) + "true()" + new string(')', 300);
+            using var document = XmlDocument.Parse(Feed);
+            XPathExpression.Compile(expression, new XPathOptions { MaxDepth = 400 }).Evaluate(document).GetBoolean().Should().BeTrue();
+            var sum = string.Concat(Enumerable.Repeat("1 + (", 200)) + "0" + new string(')', 200);
+            XPathExpression.Compile(sum, new XPathOptions { MaxDepth = 400 }).Evaluate(document).GetNumber().Should().Be(200);
+        }
+
+        [TestMethod]
         public void Evaluate_OneExpressionOverManyDocuments_GivesEachItsOwnResult()
         {
             var expression = XPathExpression.Compile("string(/a/@v)");
@@ -109,6 +177,15 @@ namespace CloudNimble.XmlEssentials.Tests
                 return expression.Evaluate(document).GetString();
             }).ToArray();
             results.Should().Equal(Enumerable.Range(0, 20).Select(i => i.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private static bool HasNameIndex(XmlDocument document)
+        {
+            return typeof(XmlDocument).GetField("_nameIndex", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(document) is not null;
         }
 
         #endregion

@@ -301,7 +301,14 @@ namespace CloudNimble.Text.Xml.XPath
         private XPathResult Run(XmlDocument document, long context, XPathVariables? variables)
         {
             var evaluator = new XPathEvaluator(document, variables, MaxOperations);
-            return XPathResult.From(document, evaluator.Evaluate(Ast, new XPathFocus(context, 1, 1)));
+            try
+            {
+                return XPathResult.From(document, evaluator.Evaluate(Ast, new XPathFocus(context, 1, 1)));
+            }
+            finally
+            {
+                evaluator.ReturnBuffers();
+            }
         }
         #endregion
 

@@ -541,7 +541,12 @@ namespace CloudNimble.Text.Xml.XPath
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private bool NameEquals(in XmlDbRow row, XPathNodeTest test)
         {
-            return _document.LocalName(in row).SequenceEqual(test.LocalName) && _document.NamespaceUri(in row).SequenceEqual(test.NamespaceUri);
+            // The lengths are on the row, so most rows that do not match are told apart without reading a name.
+            var localLength = row.PrefixLength > 0 ? row.NameLength - row.PrefixLength - 1 : row.NameLength;
+            return localLength == test.LocalName.Length
+                && row.NsLength == test.NamespaceUri.Length
+                && _document.LocalName(in row).SequenceEqual(test.LocalName)
+                && _document.NamespaceUri(in row).SequenceEqual(test.NamespaceUri);
         }
 
         /// <summary>
@@ -624,6 +629,11 @@ namespace CloudNimble.Text.Xml.XPath
         /// </remarks>
         private long Scan(int start, int end, int ancestorsOf, XPathNodeTest test, ref XPathIdBuffer output)
         {
+            if (test.Kind is XPathNodeTestKind.Name && _document.GetNameIndex() is { } index)
+            {
+                return ScanIndex(index, start, end, ancestorsOf, test, ref output);
+            }
+
             int[]? parents = null;
             long looked = 0;
             var i = start;
@@ -669,6 +679,30 @@ namespace CloudNimble.Text.Xml.XPath
             }
 
             return looked;
+        }
+
+        /// <summary>
+        /// Appends the elements of a name in a range of rows, from the index of the document.
+        /// </summary>
+        /// <param name="index">The index.</param>
+        /// <param name="start">The first row.</param>
+        /// <param name="end">The row after the range.</param>
+        /// <param name="ancestorsOf">As for <see cref="Scan"/>.</param>
+        /// <param name="test">A name test.</param>
+        /// <param name="output">The buffer.</param>
+        /// <returns>The number of rows looked at: the elements of that name in the range.</returns>
+        private long ScanIndex(XPathNameIndex index, int start, int end, int ancestorsOf, XPathNodeTest test, ref XPathIdBuffer output)
+        {
+            var rows = index.Rows(test.LocalName, test.NamespaceUri, start, end);
+            foreach (var r in rows)
+            {
+                if (_document.Row(r).EndIndex <= ancestorsOf)
+                {
+                    output.Add(XPathNodeId.FromRow(r));
+                }
+            }
+
+            return rows.Length;
         }
 
         /// <summary>

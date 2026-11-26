@@ -477,18 +477,18 @@ namespace CloudNimble.Text.Xml.XPath
                         ParseRelative(depth, steps);
                     }
 
-                    return new XPathPath(true, null, [.. steps], start);
+                    return Path(true, null, steps, start);
                 case XPathTokenKind.DoubleSlash:
                     Advance();
                     steps.Add(DescendantOrSelf);
                     ParseRelative(depth, steps);
-                    return new XPathPath(true, null, [.. steps], start);
+                    return Path(true, null, steps, start);
             }
 
             if (IsStepStart())
             {
                 ParseRelative(depth, steps);
-                return new XPathPath(false, null, [.. steps], start);
+                return Path(false, null, steps, start);
             }
 
             var filter = ParseFilter(depth);
@@ -504,7 +504,7 @@ namespace CloudNimble.Text.Xml.XPath
 
             Advance();
             ParseRelative(depth, steps);
-            return new XPathPath(false, filter, [.. steps], start);
+            return Path(false, filter, steps, start);
         }
 
         /// <summary>
@@ -683,6 +683,15 @@ namespace CloudNimble.Text.Xml.XPath
             }
 
             return new XPathUnion([.. operands]);
+        }
+
+        /// <summary>
+        /// Makes a path from its steps, rewritten by <see cref="XPathPathOptimizer"/>.
+        /// </summary>
+        private static XPathPath Path(bool isAbsolute, XPathAst? input, List<XPathStep> steps, int position)
+        {
+            XPathPathOptimizer.Optimize(steps);
+            return new XPathPath(isAbsolute, input, [.. steps], position);
         }
 
         /// <summary>

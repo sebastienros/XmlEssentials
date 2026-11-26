@@ -14,7 +14,7 @@ Normative reference: [XML Path Language (XPath) Version 1.0, W3C Recommendation 
 
 ## The design in one paragraph
 
-**A node is a 64-bit id that is derived from its row index, and ids sort in document order.** The navigator is a `readonly struct` over an `XmlDocument`. It answers three questions about an id: which ids an axis reaches from it, what its name is, and what its string-value is. Every answer is read from the row store as UTF-8. No node object, no name string and no value string is made while an expression is evaluated, except for a value that has to be put together from several rows. The one thing the navigator adds to a document is a **parent table**, one `int` for each row, built the first time an axis needs it.
+**A node is a 64-bit id that is derived from its row index, and ids sort in document order.** The navigator is a `readonly struct` over an `XmlDocument`. It answers three questions about an id: which ids an axis reaches from it, what its name is, and what its string-value is. Every answer is read from the row store as UTF-8. No node object, no name string and no value string is made while an expression is evaluated, except for a value that has to be put together from several rows. The navigator adds two things to a document, each built only when it is needed: a **parent table**, one `int` for each row, built the first time an axis needs it, and a **name index**, the element rows by expanded name, built the second time the document is scanned for a name.
 
 ```mermaid
 flowchart TD
@@ -23,6 +23,7 @@ flowchart TD
     A --> E["evaluator"]
     D["XmlDocument: rows + UTF-8 payload"] --> N["XPathNavigator (struct)"]
     P["parent table (int per row, lazy)"] --> N
+    I["name index (rows by name, lazy)"] --> N
     N --> E
     E --> R["XPathResult: node-set, number, string, boolean"]
 ```
@@ -113,6 +114,16 @@ Each step of the inner loop leaves an element that has ended and is never entere
 - **It is not built unless it is needed.** These never ask for it, and a test holds that ([testing](#testing)): `self`, `child` and `attribute`; `descendant`, `descendant-or-self`, `following` and `preceding` with a node test that cannot match a text node; and anything asked of an attribute or namespace node about its element, which is found by stepping back over the attribute rows. A path such as `/feed/entry[@id = $id]/title` reads a document of any size without it.
 
 It is needed for: `parent` and the ancestor axes from an element or a leaf; `following-sibling` and `preceding-sibling`; the `namespace` axis and `lang()`, which walk up; and telling whether two adjacent text rows are siblings (below).
+
+### The name index
+
+A scan for a name over a range of rows, which is what `//name` and `descendant::name` are, looks at every row of the range. The name index maps each expanded name (local name and namespace URI, as UTF-8) to the ascending list of the element rows that have it. With it, the scan reads only the elements of that name: the rows of a range are a contiguous part of the list, found by two binary searches, and a row that is an ancestor of the context (the `preceding` axis) is passed over as the scan passes over it.
+
+- **It is built the second time, not the first.** Building it is one pass over the rows, about the cost of one scan. A document that is queried once never pays for it; a document that is queried again pays once. The idea is the sibling-position cache of the CSS selector matcher in [Jint](https://github.com/sebastienros/jint), which is filled on the second question about a parent, not the first.
+- It belongs to the `XmlDocument` (`internal XPathNameIndex? GetNameIndex()`), which counts the scans with `Interlocked.Increment` and publishes the index with `Interlocked.CompareExchange`, as for the parent table: threads that race all get the one that was kept. `Dispose` lets it go. It is a plain object, for the reason of [open decision 4](#open-decisions).
+- The lookup is a `Dictionary` with an alternate lookup on a `ref struct` of two spans, so the bytes of the name test are looked up without a key being made.
+- Only a `Name` test uses it. `*`, `prefix:*` and the kind tests scan.
+- Rows looked at, for [`MaxOperations`](#evaluation), are the rows the index gives for the range. An expression evaluated again over the same document is therefore charged the same or less, never more.
 
 ### Text runs
 
@@ -216,17 +227,32 @@ The principal node type is attribute on the `attribute` axis, namespace on the `
 
 The evaluator is a plain recursive walk of the AST. Xemele runs its evaluator on a chain of heap frames so that an expression of any depth cannot overflow the stack, and charges every comparison to a budget. Here the parser refuses an expression nested deeper than `MaxDepth`, which bounds the recursion, and one counter is the budget. Neither Xemele's frame chain nor its accounting is ported.
 
-- **Values.** A value is a node-set (ascending `long[]` and a count), a `double`, a `bool`, or a string held as UTF-8 (`ReadOnlyMemory<byte>`).
+- **Values.** A value is a node-set (ascending `long[]` and a count, or a single id held in the value itself), a `double`, a `bool`, or a string held as UTF-8 (`ReadOnlyMemory<byte>`).
+- **Node-set arrays are rented and owned.** A node-set an evaluation makes is rented from `ArrayPool<long>.Shared` and marked as owned; the one consumer of a value gives its array back to the evaluator, which keeps a free list of them for the rest of the evaluation and returns them to the pool once, when `Evaluate` ends (also when it throws). A node-set that is not owned, such as a variable's, is never written to or given back: a filter copies it before it filters, where it filters an owned set in place. What `Evaluate` returns to the caller is copied out of the pool.
+- **Typed evaluation.** An expression whose value is only wanted as a boolean (a predicate, an operand of `and` or `or`, the argument of `not()` and `boolean()`) or only as a string (an argument of a string function) is evaluated to that type directly: a comparison answers `bool`, a `contains()` or `starts-with()` answers `bool`, a path asked for a string reads its first node's string-value, and none of them makes a value on the way.
+- **A path of one step from the context**, with no predicate, such as `qty` in `[qty > 50]` or `.` in `[. = '7']`, is selected into one buffer the evaluator keeps, rather than into a node-set value, when it is compared with a literal or a number or used as a boolean or a string.
 - **A step** takes each context node in order, calls `Select`, and runs the predicates over what it appended, one predicate after another, each with the size the last one left. The results for all context nodes go into one list. If that list is not ascending it is sorted; then duplicates are dropped. A step with no predicate lets `Select` append to the result directly.
-- **A predicate** whose value is a number passes when the number equals the proximity position; any other value is converted with `boolean()`.
-- **Comparisons** follow Recommendation §3.4. A node-set compared with a string compares the UTF-8 of each string-value with the UTF-8 of the string. Compared with a number, each string-value is parsed as a number from its bytes. Two node-sets are compared in time linear in their sizes, each string-value read once: `=` puts the string-values of the smaller set in a hash set and looks up those of the other; `!=` is true when not every string-value of the two is the same; a relational operator compares the least and the greatest number of each set, NaN left out.
+- **A predicate** whose value is a number passes when the number equals the proximity position; any other value is converted with `boolean()`. A predicate that [cannot be positional](#rewrites) is evaluated as a boolean.
+- **Comparisons** follow Recommendation §3.4. A node-set compared with a literal or a number, on either side, compares each string-value as it is read and stops at the first that decides. A node-set compared with a string compares the UTF-8 of each string-value with the UTF-8 of the string. Compared with a number, each string-value is parsed as a number from its bytes. Two node-sets are compared in time linear in their sizes, each string-value read once: `=` puts the string-values of the smaller set in a hash set and looks up those of the other; `!=` is true when not every string-value of the two is the same; a relational operator compares the least and the greatest number of each set, NaN left out.
 - **Operators.** A run of operators at one level of precedence (`a or b or c`, `1 + 2 - 3`, `a | b | c`) is one node of the tree, evaluated left to right, and a run of unary minus signs is one node that remembers whether their number is odd. A long run therefore costs neither depth nor recursion. `or` and `and` stop at the first operand that decides them.
 - **A predicate that is a number literal**, such as `[1]`, picks its node by position without evaluating anything for each candidate.
-- **Numbers.** `number()` of a string accepts optional white space, an optional `-`, and `Digits ('.' Digits?)? | '.' Digits`; anything else is `NaN`. No `+`, no exponent, no `Infinity`. `string()` of a number writes no exponent, `NaN`, `Infinity`, `-Infinity`, and `0` for both zeros. Port `XPathConversions.ParseNumber` and `FormatNumber` from Xemele, on bytes.
+- **Numbers.** `number()` of a string accepts optional white space, an optional `-`, and `Digits ('.' Digits?)? | '.' Digits`; anything else is `NaN`. No `+`, no exponent, no `Infinity`. A number of 15 significant digits or fewer is the digits as an integer divided by a power of ten, both exact in a `double`, so the one division rounds correctly; a longer one goes through `double.Parse`. `string()` of a number writes no exponent, `NaN`, `Infinity`, `-Infinity`, and `0` for both zeros. Port `XPathConversions.ParseNumber` and `FormatNumber` from Xemele, on bytes.
 - **Characters are Unicode code points.** `string-length`, `substring` and `translate` count code points, as the Recommendation says (§4.2, "characters"), which in UTF-8 is counting the bytes that are not continuation bytes. `System.Xml` counts UTF-16 code units, so `string-length('😀')` is 1 here and 2 there. `contains`, `starts-with`, `substring-before` and `substring-after` search bytes, which is exact for well-formed UTF-8.
 - **`lang()`** reads `Language` and compares without regard to ASCII case, accepting a value that is the argument or the argument followed by `-`.
 - **`id()`** evaluates its argument, so an error in it is reported, and returns the empty node-set. It reads no string-value: no attribute has type ID, so none could match.
-- **Limits.** `MaxDepth` bounds the nesting of an expression (default 64, the default depth limit of the reader): the whole expression is at depth 1, and an expression in parentheses, a function argument and a predicate are one deeper than the expression they are in. A path, a run of operators and a run of minus signs add no depth. The compiler and the evaluator also call `RuntimeHelpers.EnsureSufficientExecutionStack` as they recurse. `MaxOperations` bounds the rows `Select` looks at plus one for each string-value that a function or a comparison reads, across one `Evaluate`; `0`, the default, is no limit. Exceeding either throws `XPathException`. An expression is code: the size of the document is already bounded by `MaxDocumentByteCount`, and a fixed expression costs a fixed power of it. A caller who evaluates an expression it did not write sets `MaxOperations` ([security](18-security.md) gains a row).
+- **Limits.** `MaxDepth` bounds the nesting of an expression (default 64, the default depth limit of the reader): the whole expression is at depth 1, and an expression in parentheses, a function argument and a predicate are one deeper than the expression they are in. A path, a run of operators and a run of minus signs add no depth. The compiler calls `RuntimeHelpers.EnsureSufficientExecutionStack` as it recurses, and the evaluator calls it once it is more than 128 levels deep, which only an expression compiled with a `MaxDepth` above the default reaches. `MaxOperations` bounds the rows `Select` looks at plus one for each string-value that a function or a comparison reads, across one `Evaluate`; `0`, the default, is no limit. Exceeding either throws `XPathException`. An expression is code: the size of the document is already bounded by `MaxDocumentByteCount`, and a fixed expression costs a fixed power of it. A caller who evaluates an expression it did not write sets `MaxOperations` ([security](18-security.md) gains a row).
+
+### Rewrites
+
+The parser rewrites three forms of location path into ones that select the same nodes with less work. `System.Xml.XPath` makes the same rewrites (`QueryBuilder`).
+
+| Written | Evaluated as | When |
+| --- | --- | --- |
+| `//x[p]`, that is `descendant-or-self::node()/child::x[p]` | `descendant::x[p]` | No predicate of the `child` step can be positional |
+| `//@a`, `//namespace::n` | `descendant-or-self::*/@a` | Always: only elements have attributes and namespace nodes |
+| `self::node()` with no predicate (`.`) inside a path | nothing | Always |
+
+**A predicate can be positional** when it could read the proximity position of its candidate in the `child` step: when its value may be a number (a number literal, arithmetic, a negation, a variable, or a function that returns a number), or when it calls `position()` or `last()` at its own level. A call inside a nested predicate or path reads that path's position and does not count. Under the rewrite, `//x[1]` would be the first `x` of the document rather than the first `x` child of every node, so it is not rewritten; `//x[@id = 'a']`, `//x[contains(., 'b')]` and `//x[y > 2]` are.
 
 ## Public API
 
@@ -335,7 +361,9 @@ The code follows this repository's rules, not Xemele's: one type to a file, bloc
 - **The compiler.** Every production of the grammar, and for every rejection the exact message and `Position`.
 - **Both document options.** The same expressions over a document parsed with comments skipped and with insignificant white space left out, with the node counts that follow.
 - **Laziness.** A test evaluates paths that use only the axes listed under [the parent table](#the-parent-table) and asserts that the document has not built its table; an `*AllocationTests` case holds any "does not allocate" statement the documentation makes.
-- **Threads.** One compiled expression evaluated from several threads over one document, starting together on a document that has no table yet.
+- **Threads.** One compiled expression evaluated from several threads over one document, starting together on a document that has no table yet, and again on one that has no name index yet.
+- **The rewrites.** The compiler tests print the tree after the rewrites, and one test asserts the tree for about forty paths, which are rewritten and which are not: every kind of predicate that can be positional, each next to a counterpart that cannot. The evaluation tests hold the results of the same shapes.
+- **The name index.** The same expressions, on each axis that scans and with namespaced and absent names, give the same nodes the first time (by scan) and after the index is built; the index is not built by one scan and is let go by `Dispose`.
 - **No `System.Xml` in the test project**, so there is no differential test against the BCL there. The comparison with `System.Xml.XPath` lives in the Performance project, as benchmarks whose results must also be equal.
 - **Coverage.** The gate stays at 100% line and 100% branch ([testing](14-testing.md)). A branch of the engine that no expression can reach is deleted, not excluded.
 - **Native AOT.** `Tests.Aot` compiles and evaluates one expression of each result kind.
@@ -392,13 +420,14 @@ Building the design changed these points. Each is reflected in the sections abov
 8. **`id()` reads nothing.** It evaluates its argument and returns the empty node-set.
 9. **The options are checked** (`xml`, `xmlns`, empty URI, negative limits), and an empty expression is `ArgumentException`. The first draft did not say.
 10. **The Breakdance public-API baseline was not made.** The repository has no Breakdance baseline yet (PR 11 is not started), and the instructions for one refer to a local path that was not available.
+11. **The evaluator was made faster without changing a result** ([optimization](23-optimization.md#xpath-against-systemxmlxpath)): the [rewrites](#rewrites), rented and owned node-sets, typed evaluation, the one-step path into a kept buffer, the constant comparison, the [name index](#the-name-index) and the shorter number parser. The first draft had none of them.
 
 ## Open decisions
 
 1. **Convenience members.** `XmlElement.SelectNodes(string)` and the like are what a caller coming from `System.Xml` looks for. They compile the expression on every call unless a cache is added, and a cache is a policy. Not proposed until the compiled form has been used.
 2. **The default of `MaxOperations`.** No limit is proposed, for the reason under [evaluation](#evaluation). The alternative is a default in proportion to the row count of the document.
 3. **The mutable tree.** A navigator over `XmlNode` needs ids in document order for a tree that changes, which means numbering the tree for each evaluation. It is a separate piece of work, and whether it is wanted is the owner's call.
-4. **A pooled parent table.** A plain array is proposed. Renting it would match the document's other buffers and would add a path to `Dispose` and a race between the first query and `Dispose` to reason about.
+4. **A pooled parent table and name index.** A plain array and a plain object are proposed. Renting it would match the document's other buffers and would add a path to `Dispose` and a race between the first query and `Dispose` to reason about.
 5. **Core package or companion.** The navigator reads internal members of `XmlDocument`, so it is in the core assembly here. A companion package would need `InternalsVisibleTo`.
 
 ## Task list

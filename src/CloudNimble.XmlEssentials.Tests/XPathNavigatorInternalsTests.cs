@@ -86,6 +86,23 @@ namespace CloudNimble.XmlEssentials.Tests
         }
 
         [TestMethod]
+        public void NameKeyComparer_KeysAndSpans_HashAndCompareAlike()
+        {
+            var comparer = XPathNameKeyComparer.Instance;
+            var key = comparer.Create(new XPathNameSpan("item"u8, "urn:a"u8));
+            var same = new XPathNameKey("item"u8.ToArray(), "urn:a"u8.ToArray());
+            var other = new XPathNameKey("item"u8.ToArray(), []);
+            comparer.Equals(key, same).Should().BeTrue();
+            comparer.Equals(key, other).Should().BeFalse();
+            comparer.Equals(new XPathNameKey("it"u8.ToArray(), "emurn:a"u8.ToArray()), key).Should().BeFalse();
+            comparer.GetHashCode(key).Should().Be(comparer.GetHashCode(same));
+            comparer.GetHashCode(key).Should().Be(comparer.GetHashCode(new XPathNameSpan("item"u8, "urn:a"u8)));
+            comparer.Equals(new XPathNameSpan("item"u8, "urn:a"u8), key).Should().BeTrue();
+            comparer.Equals(new XPathNameSpan("item"u8, ""u8), key).Should().BeFalse();
+            comparer.Equals(new XPathNameSpan("name"u8, "urn:a"u8), key).Should().BeFalse();
+        }
+
+        [TestMethod]
         public void SliceMemory_PayloadAndExtra_ReturnTheBytesOfTheRow()
         {
             using var document = XmlDocument.Parse("<e a=\"1\">&amp;x</e>");

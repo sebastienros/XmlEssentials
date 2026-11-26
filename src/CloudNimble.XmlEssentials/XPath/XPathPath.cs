@@ -1,3 +1,5 @@
+using System;
+
 namespace CloudNimble.Text.Xml.XPath
 {
 
@@ -52,6 +54,19 @@ namespace CloudNimble.Text.Xml.XPath
         internal override XPathValue Evaluate(XPathEvaluator evaluator, in XPathFocus focus)
         {
             return evaluator.Path(this, focus);
+        }
+
+
+        /// <inheritdoc />
+        internal override bool EvaluateBoolean(XPathEvaluator evaluator, in XPathFocus focus)
+        {
+            return evaluator.PathBoolean(this, focus);
+        }
+
+        /// <inheritdoc />
+        internal override ReadOnlyMemory<byte> EvaluateText(XPathEvaluator evaluator, in XPathFocus focus)
+        {
+            return evaluator.PathText(this, focus);
         }
 
         #endregion

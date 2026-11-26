@@ -19,6 +19,11 @@ namespace CloudNimble.Text.Xml.XPath
         private static readonly byte[] InfinityText = "Infinity"u8.ToArray();
         private static readonly byte[] NaNText = "NaN"u8.ToArray();
         private static readonly byte[] NegativeInfinityText = "-Infinity"u8.ToArray();
+
+        /// <summary>
+        /// The powers of ten up to 10^15, each exact in a double.
+        /// </summary>
+        private static readonly double[] PowersOfTen = [1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15];
         private static readonly byte[] TrueText = "true"u8.ToArray();
         private static readonly byte[] ZeroText = "0"u8.ToArray();
 
@@ -152,10 +157,14 @@ namespace CloudNimble.Text.Xml.XPath
             }
 
             var text = utf8[start..end];
-            var i = text.Length > 0 && text[0] == (byte)'-' ? 1 : 0;
+            var negative = text.Length > 0 && text[0] == (byte)'-';
+            var i = negative ? 1 : 0;
             var digits = 0;
+            var fraction = 0;
+            var mantissa = 0UL;
             while (i < text.Length && char.IsAsciiDigit((char)text[i]))
             {
+                mantissa = (mantissa * 10) + (uint)(text[i] - '0');
                 i++;
                 digits++;
             }
@@ -165,14 +174,24 @@ namespace CloudNimble.Text.Xml.XPath
                 i++;
                 while (i < text.Length && char.IsAsciiDigit((char)text[i]))
                 {
+                    mantissa = (mantissa * 10) + (uint)(text[i] - '0');
                     i++;
                     digits++;
+                    fraction++;
                 }
             }
 
             if (digits == 0 || i != text.Length)
             {
                 return double.NaN;
+            }
+
+            if (digits <= 15)
+            {
+                // Fifteen digits are exact in a double, and so is every power of ten up to 10^22, so one division,
+                // which IEEE 754 rounds correctly, gives the double nearest the decimal (Clinger's fast path).
+                var value = mantissa / PowersOfTen[fraction];
+                return negative ? -value : value;
             }
 
             return double.Parse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture);

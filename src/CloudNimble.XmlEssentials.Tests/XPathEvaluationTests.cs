@@ -311,6 +311,21 @@ namespace CloudNimble.XmlEssentials.Tests
         [DataRow("//x/following::*[1]", "x p:y")]
         [DataRow("//x/preceding::*[1]", "x")]
         [DataRow("(//x/following::*)[1]", "x")]
+        [DataRow("//x[not(@n = '1')]/@n", "@n=2")]
+        [DataRow("//x[boolean(@n)]/@n", "@n=1 @n=2")]
+        [DataRow("//x[true()]/@n", "@n=1 @n=2")]
+        [DataRow("//x[false()]", "{}")]
+        [DataRow("//x[lang('en')]/@n", "@n=1 @n=2")]
+        [DataRow("//x[starts-with(., 'A')]/@n", "@n=1")]
+        [DataRow("//x[contains(., 'D')]/@n", "@n=2")]
+        [DataRow("count(//node()[name()])", "5")]
+        [DataRow("count(//*[normalize-space()])", "3")]
+        [DataRow("//x['2' = @n]/@n", "@n=2")]
+        [DataRow("//x[1 < @n]/@n", "@n=2")]
+        [DataRow("//x[@n = 2]/@n", "@n=2")]
+        [DataRow("string(missing)", "''")]
+        [DataRow("string(@n)", "'2'")]
+        [DataRow("concat(@missing, '-', text())", "'-D'")]
         public void Case_IsEvaluatedAsTheRecommendationSays(string expression, string expected)
         {
             XPathRendering.Evaluate(Main, expression, Context, Options).Should().Be(expected);

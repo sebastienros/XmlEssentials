@@ -107,7 +107,7 @@ namespace CloudNimble.Text.Xml.XPath
             ArgumentException.ThrowIfNullOrWhiteSpace(localName);
             ArgumentNullException.ThrowIfNull(value);
             ArgumentNullException.ThrowIfNull(namespaceUri);
-            _values[(localName, namespaceUri)] = (XPathValue.FromNodes(value.Ids, value.Count), value.Document);
+            _values[(localName, namespaceUri)] = (XPathValue.FromNodes(value.Ids, value.Count, owned: false), value.Document);
         }
 
         #endregion

@@ -54,6 +54,8 @@ namespace CloudNimble.Text.Xml
         private int _extraLength;
         private bool _isPooled = true;
         private int _nsCacheLength;
+        private XPath.XPathNameIndex? _nameIndex;
+        private int _nameScans;
         private int _nsCacheStart;
         private int[]? _parents;
         private int _rootIndex;
@@ -295,6 +297,7 @@ namespace CloudNimble.Text.Xml
             _extra = [];
             _rows = [];
             _parents = null;
+            _nameIndex = null;
             _sourceLength = 0;
             _extraLength = 0;
             _rowCount = 0;
@@ -1067,6 +1070,32 @@ namespace CloudNimble.Text.Xml
                     ? "<?xml version=\"1.1\" encoding=\"utf-8\"?>"u8
                     : "<?xml version=\"1.0\" encoding=\"utf-8\"?>"u8,
             };
+        }
+
+        /// <summary>
+        /// Returns the index of the elements of the document by name, once the document has been scanned for a name
+        /// before.
+        /// </summary>
+        /// <returns>The index, or <see langword="null"/> the first time it is asked for.</returns>
+        /// <remarks>
+        /// Each call counts a scan for a name. The first is answered by the scan itself; the second builds the index,
+        /// which every later scan uses. Threads that race to build it all get the one that was kept. It is a plain object,
+        /// not a pooled one, and <see cref="Dispose"/> lets it go. Does not check for disposal.
+        /// </remarks>
+        internal XPath.XPathNameIndex? GetNameIndex()
+        {
+            if (_nameIndex is { } built)
+            {
+                return built;
+            }
+
+            if (Interlocked.Increment(ref _nameScans) < 2)
+            {
+                return null;
+            }
+
+            Interlocked.CompareExchange(ref _nameIndex, new XPath.XPathNameIndex(this), null);
+            return _nameIndex;
         }
 
         /// <summary>

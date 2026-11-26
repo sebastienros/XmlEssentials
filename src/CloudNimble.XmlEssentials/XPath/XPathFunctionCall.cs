@@ -46,6 +46,13 @@ namespace CloudNimble.Text.Xml.XPath
             return XPathCoreFunctions.Call(evaluator, this, focus);
         }
 
+
+        /// <inheritdoc />
+        internal override bool EvaluateBoolean(XPathEvaluator evaluator, in XPathFocus focus)
+        {
+            return XPathCoreFunctions.CallBoolean(evaluator, this, focus);
+        }
+
         #endregion
 
     }

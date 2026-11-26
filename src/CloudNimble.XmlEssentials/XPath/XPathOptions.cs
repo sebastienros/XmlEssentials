@@ -57,6 +57,9 @@ namespace CloudNimble.Text.Xml.XPath
         /// An expression is code. The size of a document is already bounded by
         /// <see cref="XmlDocumentOptions.MaxDocumentByteCount"/>, and a fixed expression costs a fixed power of it.
         /// A caller who evaluates an expression it did not write sets this limit.
+        /// Once a document has been searched for elements by name twice, it keeps an index of them, and a search by name
+        /// looks only at the elements of that name. The same evaluation over the same document may therefore count less
+        /// work the next time, never more.
         /// </remarks>
         public long MaxOperations
         {
